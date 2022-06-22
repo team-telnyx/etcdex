@@ -7,13 +7,7 @@ defmodule EtcdEx.Connection do
 
   @type t :: atom
 
-  @default_eetcd_options [
-    retry: 1,
-    retry_timeout: :timer.seconds(5),
-    connect_timeout: :timer.seconds(15),
-    auto_sync_start_ms: 100,
-    auto_sync_interval_ms: :timer.seconds(5)
-  ]
+  @default_eetcd_options []
   @default_eetcd_transport :tcp
   @default_eetcd_transport_opts []
 
