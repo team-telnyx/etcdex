@@ -80,7 +80,7 @@ defmodule EtcdEx.Connection do
   end
 
   @impl true
-  def handle_info(_, state) do
+  def handle_info(_message, state) do
     # XXX: this is required by Gun, as sometimes it keeps sending messages even
     # though the request has already finished (specially on error conditions).
     {:noreply, state}

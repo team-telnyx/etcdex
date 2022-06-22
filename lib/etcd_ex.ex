@@ -13,6 +13,11 @@ defmodule EtcdEx do
   @type sort :: {sort_target, sort_order}
   @type sort_target :: :KEY | :VERSION | :VALUE | :CREATE | :MOD
   @type sort_order :: :NONE | :ASCEND | :DESCEND
+  @type watch :: pid
+  @type watch_id :: pos_integer
+
+  @type filters :: [filter]
+  @type filter :: :NOPUT | :NODELETE
 
   @type get_opts :: [get_opt]
   @type get_opt ::
@@ -46,6 +51,19 @@ defmodule EtcdEx do
           | {:from_key, boolean}
           | {:prev_kv, boolean}
           | {:timeout, timeout}
+
+  @type watch_opts :: [watch_opt]
+  @type watch_opt ::
+          {:range_end, range_end}
+          | {:prefix, boolean}
+          | {:from_key, boolean}
+          | {:start_revision, revision}
+          | {:filters, filters}
+          | {:prev_kv, boolean}
+          | {:progress_notify, boolean}
+
+  defdelegate child_spec(init_opts), to: EtcdEx.Connection
+  defdelegate start_link(start_opts), to: EtcdEx.Connection
 
   @doc """
   Gets one or range of key-value pairs from Etcd.
@@ -266,5 +284,105 @@ defmodule EtcdEx do
     req
     |> :eetcd_kv.with_timeout(timeout)
     |> build_get_opts(opts)
+  end
+
+  @doc """
+  Watches operations made on Etcd keys.
+  """
+  @spec watch(conn, key, watch_opts) :: {:ok, watch, watch_id} | {:error, any}
+  def watch(conn, key, opts \\ []) do
+    request =
+      :eetcd_watch.new()
+      |> :eetcd_watch.with_key(key)
+      |> build_watch_opts(opts)
+
+    {:ok, watch} = EtcdEx.Watch.start_link({self(), conn})
+
+    case EtcdEx.Watch.watch(watch, request) do
+      {:ok, watch_id} ->
+        {:ok, watch, watch_id}
+
+      error ->
+        EtcdEx.Watch.cancel(watch)
+
+        error
+    end
+  end
+
+  defp build_watch_opts(req, []), do: req
+
+  defp build_watch_opts(req, [{:range_end, range_end} | opts]) do
+    req
+    |> :eetcd_watch.with_range_end(range_end)
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:prefix, true} | opts]) do
+    req
+    |> :eetcd_watch.with_prefix()
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:prefix, _} | opts]), do: build_watch_opts(req, opts)
+
+  defp build_watch_opts(req, [{:from_key, true} | opts]) do
+    req
+    |> :eetcd_watch.with_from_key()
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:from_key, _} | opts]), do: build_watch_opts(req, opts)
+
+  defp build_watch_opts(req, [{:start_revision, revision} | opts]) do
+    req
+    |> :eetcd_watch.with_start_revision(revision)
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:filters, filters} | opts]) do
+    req =
+      Enum.reduce(filters, req, fn
+        :NOPUT, req -> :eetcd_watch.with_filter_put(req)
+        :NODELETE, req -> :eetcd_watch.with_filter_delete(req)
+      end)
+
+    build_watch_opts(req, opts)
+  end
+
+  defp build_watch_opts(req, [{:prev_kv, true} | opts]) do
+    req
+    |> :eetcd_watch.with_prev_kv()
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:prev_kv, _} | opts]), do: build_watch_opts(req, opts)
+
+  defp build_watch_opts(req, [{:progress_notify, true} | opts]) do
+    req
+    |> :eetcd_watch.with_progress_notify()
+    |> build_watch_opts(opts)
+  end
+
+  defp build_watch_opts(req, [{:progress_notify, _} | opts]), do: build_watch_opts(req, opts)
+
+  @doc """
+  Reuses an existing watch to observe further keys.
+  """
+  @spec reuse_watch(watch, key, watch_opts) :: {:ok, watch_id} | {:error, any}
+  def reuse_watch(watch, key, opts \\ []) when is_pid(watch) do
+    request =
+      :eetcd_watch.new()
+      |> :eetcd_watch.with_key(key)
+      |> build_watch_opts(opts)
+
+    EtcdEx.Watch.watch(watch, request)
+  end
+
+  @doc """
+  Cancels an Etcd watch.
+  """
+  @spec cancel_watch(watch) :: :ok
+  def cancel_watch(watch) when is_pid(watch) do
+    EtcdEx.Watch.cancel(watch)
   end
 end
