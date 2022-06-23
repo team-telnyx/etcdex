@@ -29,7 +29,7 @@ defmodule EtcdEx do
   @type key :: String.t()
   @type value :: String.t()
   @type range_end :: String.t()
-  @type lease :: integer
+  @type lease_id :: integer
   @type limit :: non_neg_integer
   @type revision :: pos_integer
   @type sort :: {sort_target, sort_order}
@@ -37,6 +37,7 @@ defmodule EtcdEx do
   @type sort_order :: :NONE | :ASCEND | :DESCEND
   @type watch :: pid
   @type watch_id :: pos_integer
+  @type ttl :: pos_integer
 
   @type filters :: [filter]
   @type filter :: :NOPUT | :NODELETE
@@ -60,7 +61,7 @@ defmodule EtcdEx do
 
   @type put_opts :: [put_opt]
   @type put_opt ::
-          {:lease, lease}
+          {:lease, lease_id}
           | {:prev_kv, boolean}
           | {:ignore_value, boolean}
           | {:ignore_lease, boolean}
@@ -83,6 +84,12 @@ defmodule EtcdEx do
           | {:filters, filters}
           | {:prev_kv, boolean}
           | {:progress_notify, boolean}
+
+  @type grant_opts :: [grant_opt]
+  @type grant_opt :: {:timeout, timeout}
+
+  @type revoke_opts :: [revoke_opt]
+  @type revoke_opt :: {:timeout, timeout}
 
   @doc """
   Returns a specification to start `EtcdEx` under a supervisor.
@@ -693,5 +700,174 @@ defmodule EtcdEx do
   @spec cancel_watch(watch) :: :ok
   def cancel_watch(watch) when is_pid(watch) do
     EtcdEx.Watch.cancel(watch)
+  end
+
+  @doc """
+  Obtain a lease.
+
+  The argument `ttl` is the advisory time-to-live, in seconds.
+
+  The only option available is `:timeout` which indicates how long to wait for
+  a response from the Etcd cluster.
+
+  Leases are a mechanism for detecting client liveness. The cluster grants
+  leases with a time-to-live. A lease expires if the etcd cluster does not
+  receive a keepAlive within a given TTL period.
+
+  To tie leases into the key-value store, each key may be attached to at most
+  one lease. When a lease expires or is revoked, all keys attached to that
+  lease will be deleted. Each expired key generates a delete event in the event
+  history.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 300,
+        error: "",
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47427980
+        }
+      }
+
+    * `:ID` - the lease ID for the granted lease.
+    * `:TTL` - is the server selected time-to-live, in seconds, for the lease.
+  """
+  @spec grant(conn, ttl, grant_opts) :: {:ok, any} | {:error, any}
+  def grant(conn, ttl, opts \\ []) when is_atom(conn) and is_integer(ttl) and ttl >= 0 do
+    request =
+      conn
+      |> :eetcd_lease.new()
+      |> build_grant_opts(opts)
+
+    EtcdEx.Connection.grant(conn, ttl, request)
+  end
+
+  defp build_grant_opts(req, []), do: req
+
+  defp build_grant_opts(req, [{:timeout, timeout} | opts]) do
+    req
+    |> :eetcd_lease.with_timeout(timeout)
+    |> build_grant_opts(opts)
+  end
+
+  @doc """
+  Revokes a previously granted lease.
+
+  The response is of the form:
+
+      %{
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47452709
+        }
+      }
+  """
+  @spec revoke(conn, lease_id, revoke_opts) :: {:ok, any} | {:error, any}
+  def revoke(conn, lease_id, opts \\ []) do
+    request =
+      conn
+      |> :eetcd_lease.new()
+      |> build_grant_opts(opts)
+
+    EtcdEx.Connection.revoke(conn, lease_id, request)
+  end
+
+  @doc """
+  Refreshes an existing lease.
+
+  The `lease_id` should have been obtained from a previous call to `grant/3`.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 300,
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47428392
+        }
+      }
+
+    * `:ID` - the lease that was refreshed with a new TTL.
+    * `:TTL` - the new time-to-live, in seconds, that the lease has remaining.
+  """
+  @spec keep_alive_once(conn, lease_id) :: {:ok, any} | {:error, any}
+  def keep_alive_once(conn, lease_id) do
+    EtcdEx.Connection.keep_alive_once(conn, lease_id)
+  end
+
+  @doc """
+  Checks the advisory time-to-live from a lease.
+
+  The `lease_id` should have been obtained from a previous call to `grant/3`.
+
+  If `with_keys` argument is `true`, the response will have the `:keys` field
+  containing a list of all keys associated with the `lease_id`.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 231,
+        grantedTTL: 300,
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47429656
+        },
+        keys: []
+      }
+
+    * `:ID` - the queried lease ID.
+    * `:TTL` - the time-to-live, in seconds, that the lease has remaining.
+    * `:grantedTTL` - the time, in seconds, of the time-to-live requested when
+      the lease was granted.
+    * `:keys` - if `with_keys` is `true`, it will contain a list of keys that
+      have been assigned to the lease.
+  """
+  @spec ttl(conn, lease_id, with_keys :: boolean) :: {:ok, any} | {:error, any}
+  def ttl(conn, lease_id, with_keys \\ false) do
+    EtcdEx.Connection.ttl(conn, lease_id, with_keys)
+  end
+
+  @doc """
+  List all leases from the Etcd cluster.
+
+  The response is of the form:
+
+      %{
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47430034
+        },
+        leases: [
+          %{ID: 6322351403492000182},
+          %{ID: 4658271320501761384},
+          %{ID: 4658271320501772555}
+        ]
+      }
+
+    * `:leases` - list of leases.
+  """
+  @spec leases(conn) :: {:ok, any} | {:error, any}
+  def leases(conn) do
+    EtcdEx.Connection.leases(conn)
   end
 end
