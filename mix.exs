@@ -8,6 +8,7 @@ defmodule EtcdEx.MixProject do
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
       package: package(),
       name: "EtcdEx",
       source_url: "https://github.com/team-telnyx/etcdex",
@@ -25,8 +26,23 @@ defmodule EtcdEx.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:eetcd, "~> 0.3"},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:mint, "~> 1.0"},
+      {:protobuf, "~> 0.10"},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      protoc:
+        for file <- [
+              "auth.proto",
+              "gogo.proto",
+              "kv.proto",
+              "router.proto"
+            ] do
+          "cmd protoc --elixir_out=./lib/etcd_ex/protos -Iprotos protos/#{file}"
+        end
     ]
   end
 
@@ -40,7 +56,8 @@ defmodule EtcdEx.MixProject do
     [
       maintainers: [
         "Guilherme Versiani <guilherme@telnyx.com>",
-        "Michał Szajbe <michals@telnyx.com>"
+        "Michał Szajbe <michals@telnyx.com>",
+        "Thanya Nitithatsanakul <thanya@telnyx.com>"
       ],
       licenses: ["Apache 2.0"],
       links: %{"GitHub" => "https://github.com/team-telnyx/etcdex"},
