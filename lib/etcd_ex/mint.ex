@@ -13,14 +13,19 @@ defmodule EtcdEx.Mint do
   Wraps a `Mint` connection.
   """
   @spec wrap(Mint.HTTP.t()) :: t
-  def wrap(conn) do
-    %__MODULE__{conn: conn}
-  end
+  def wrap(conn), do: %__MODULE__{conn: conn}
+
+  @doc """
+  Unwraps a `EtcdEx.Mint` connection.
+  """
+  @spec wrap(t) :: Mint.HTTP.t
+  def unwrap(%__MODULE__{conn: conn}), do: conn
 
   @doc """
   Retrieve range of key-value pairs from Etcd.
   """
-  @spec get(t, Types.key(), [Types.get_opt()]) :: {:ok, t} | {:error, t, Mint.Types.error()}
+  @spec get(t, Types.key(), [Types.get_opt()]) ::
+          {:ok, t, Mint.Types.request_ref()} | {:error, t, Mint.Types.error()}
   def get(env, key, opts \\ []) when is_binary(key) and is_list(opts) do
     body =
       ([key: key] ++ build_get_opts(key, opts))
@@ -193,7 +198,7 @@ defmodule EtcdEx.Mint do
   def put(env, key, value, opts \\ [])
       when is_binary(key) and is_binary(value) and is_list(opts) do
     body =
-      ([key: key] ++ build_put_opts(key, opts))
+      ([key: key, value: value] ++ build_put_opts(key, opts))
       |> EtcdEx.Proto.PutRequest.new()
       |> EtcdEx.Proto.PutRequest.encode()
 
@@ -262,9 +267,9 @@ defmodule EtcdEx.Mint do
   @doc """
   """
   @spec grant(t, Types.ttl()) :: {:ok, t} | {:error, t, Mint.Types.error()}
-  def grant(env, ttl) when is_integer(ttl) and ttl >= 0 do
+  def grant(env, ttl, lease_id \\ 0) when is_integer(ttl) and ttl >= 0 do
     body =
-      [ttl: ttl]
+      [ID: lease_id, TTL: ttl]
       |> EtcdEx.Proto.LeaseGrantRequest.new()
       |> EtcdEx.Proto.LeaseGrantRequest.encode()
 

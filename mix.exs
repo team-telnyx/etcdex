@@ -28,6 +28,7 @@ defmodule EtcdEx.MixProject do
     [
       {:mint, "~> 1.0"},
       {:protobuf, "~> 0.10"},
+      {:connection, "~> 1.1"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end

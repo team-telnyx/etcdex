@@ -193,7 +193,7 @@ defmodule EtcdEx do
           {:ok, any} | {:error, Mint.Types.error()}
   def get(conn, key, opts \\ [], timeout \\ @default_timeout)
       when is_atom(conn) and is_binary(key) and is_list(opts) do
-    EtcdEx.Connection.get(conn, key, opts, timeout)
+    EtcdEx.Connection.unary(conn, :get, [key, opts], timeout)
   end
 
   @doc """
@@ -219,7 +219,7 @@ defmodule EtcdEx do
           {:ok, any} | {:error, Mint.Types.error()}
   def put(conn, key, value, opts \\ [], timeout \\ @default_timeout)
       when is_atom(conn) and is_binary(key) and is_binary(value) and is_list(opts) do
-    EtcdEx.Connection.put(conn, key, value, opts, timeout)
+    EtcdEx.Connection.unary(conn, :put, [key, value, opts], timeout)
   end
 
   @doc """
@@ -239,7 +239,7 @@ defmodule EtcdEx do
   @spec delete(conn, Types.key(), [Types.delete_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
   def delete(conn, key, opts \\ [], timeout \\ @default_timeout) do
-    EtcdEx.Connection.delete(conn, key, opts, timeout)
+    EtcdEx.Connection.unary(conn, :delete, [key, opts], timeout)
   end
 
   @doc """
@@ -359,18 +359,19 @@ defmodule EtcdEx do
       the event. To save bandwidth, it is only filled out if the watch has explicitly
       enabled it.
   """
-  @spec watch(conn, Types.key(), [Types.watch_opt()]) ::
+  @spec watch(conn, Mint.Types.request_ref(), Types.key(), [Types.watch_opt()], timeout) ::
           {:ok, Types.watch_id()} | {:error, Mint.Types.error()}
-  def watch(conn, key, opts \\ [], timeout \\ @default_timeout) do
-    EtcdEx.Connection.watch(conn, key, opts, timeout)
+  def watch(conn, watch_ref, key, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.watch(conn, watch_ref, key, opts, timeout)
   end
 
   @doc """
   Cancels a watch.
   """
-  @spec cancel_watch(conn, Types.watch_id(), timeout) :: :ok | {:error, Mint.Types.error()}
-  def cancel_watch(conn, watch_id, timeout \\ @default_timeout) when is_pid(conn) do
-    EtcdEx.Connection.cancel_watch(conn, watch_id, timeout)
+  @spec cancel_watch(conn, Mint.Types.request_ref(), Types.watch_id(), timeout) ::
+          :ok | {:error, Mint.Types.error()}
+  def cancel_watch(conn, watch_ref, watch_id, timeout \\ @default_timeout) when is_pid(conn) do
+    EtcdEx.Connection.cancel_watch(conn, watch_ref, watch_id, timeout)
   end
 
   @doc """
@@ -418,10 +419,10 @@ defmodule EtcdEx do
     * `:ID` - the lease ID for the granted lease.
     * `:TTL` - is the server selected time-to-live, in seconds, for the lease.
   """
-  @spec grant(conn, Types.ttl(), [Types.grant_opt()]) :: {:ok, any} | {:error, Mint.Types.error()}
-  def grant(conn, ttl, opts \\ []) when is_atom(conn) and is_integer(ttl) and ttl >= 0 do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    EtcdEx.Connection.grant(conn, ttl, timeout)
+  @spec grant(conn, Types.ttl(), timeout) :: {:ok, any} | {:error, Mint.Types.error()}
+  def grant(conn, ttl, timeout \\ @default_timeout)
+      when is_atom(conn) and is_integer(ttl) and ttl >= 0 do
+    EtcdEx.Connection.unary(conn, :grant, [ttl], timeout)
   end
 
   @doc """
@@ -438,11 +439,10 @@ defmodule EtcdEx do
         }
       }
   """
-  @spec revoke(conn, Types.lease_id(), [Types.revoke_opt()]) ::
+  @spec revoke(conn, Types.lease_id(), timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
-  def revoke(conn, lease_id, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    EtcdEx.Connection.revoke(conn, lease_id, timeout)
+  def revoke(conn, lease_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :revoke, [lease_id], timeout)
   end
 
   @doc """
@@ -468,11 +468,10 @@ defmodule EtcdEx do
     * `:ID` - the lease that was refreshed with a new TTL.
     * `:TTL` - the new time-to-live, in seconds, that the lease has remaining.
   """
-  @spec keep_alive(conn, Types.lease_id(), [Types.keep_alive_opt()]) ::
+  @spec keep_alive(conn, Types.lease_id(), timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
-  def keep_alive(conn, lease_id, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    EtcdEx.Connection.keep_alive(conn, lease_id, timeout)
+  def keep_alive(conn, lease_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :keep_alive, [lease_id], timeout)
   end
 
   @doc """
@@ -507,11 +506,10 @@ defmodule EtcdEx do
     * `:keys` - if `with_keys` is `true`, it will contain a list of keys that
       have been assigned to the lease.
   """
-  @spec ttl(conn, Types.lease_id(), [Types.ttl_opt()]) ::
+  @spec ttl(conn, Types.lease_id(), [Types.ttl_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
-  def ttl(conn, lease_id, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    EtcdEx.Connection.ttl(conn, lease_id, timeout)
+  def ttl(conn, lease_id, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :ttl, [lease_id, opts], timeout)
   end
 
   @doc """
@@ -535,9 +533,8 @@ defmodule EtcdEx do
 
     * `:leases` - list of leases.
   """
-  @spec leases(conn, [Types.leases_opt()]) :: {:ok, any} | {:error, Mint.Types.error()}
-  def leases(conn, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, @default_timeout)
-    EtcdEx.Connection.leases(conn, timeout)
+  @spec leases(conn, timeout) :: {:ok, any} | {:error, Mint.Types.error()}
+  def leases(conn, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :leases, [], timeout)
   end
 end
