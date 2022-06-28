@@ -88,12 +88,10 @@ defmodule EtcdEx.Connection do
 
     case Mint.HTTP2.connect(scheme, address, port, opts) do
       {:ok, conn} ->
-        {:ok,
-         %{
-           state
-           | env: EtcdEx.Mint.wrap(conn),
-             keep_alive_timer: KeepAliveTimer.start(state.options)
-         }}
+        env = EtcdEx.Mint.wrap(conn)
+        keep_alive_timer = KeepAliveTimer.start(state.options)
+        state = %{state | env: env, keep_alive_timer: keep_alive_timer}
+        {:ok, reconnect_watches(state)}
 
       {:error, _reason} ->
         {:backoff, @default_backoff, state}
@@ -105,7 +103,7 @@ defmodule EtcdEx.Connection do
     state.pending_requests
     |> Enum.each(fn
       {_request_ref, {:unary, from, _}} -> Connection.reply(from, {:error, reason})
-      {_request_ref, {:watch, pid}} -> send(pid, {:etcd_watch_error, reason})
+      {_request_ref, {:watch, _watching_process}} -> :ok
     end)
 
     state.env
@@ -116,6 +114,10 @@ defmodule EtcdEx.Connection do
   end
 
   @impl Connection
+  def handle_call(_, _from, %{env: nil} = state) do
+    {:reply, {:error, :not_connected}, state}
+  end
+
   def handle_call({:unary, fun, args}, from, state)
       when fun in [:get, :put, :delete, :grant, :revoke, :keep_alive, :ttl, :leases] do
     if state.env == nil do
@@ -244,7 +246,7 @@ defmodule EtcdEx.Connection do
             %{state | env: env, watch_streams: watch_streams}
 
           {:error, env, reason} ->
-            Logger.debug("error when sending request: #{inspect(reason)}")
+            Logger.warn("error when sending request: #{inspect(reason)}")
             %{state | env: env}
         end
     end
@@ -277,16 +279,10 @@ defmodule EtcdEx.Connection do
         pending_requests = Map.delete(state.pending_requests, request_ref)
         %{state | pending_requests: pending_requests}
 
-      {:watch, pid} ->
-        %{pending: pending} = Map.fetch!(state.watch_streams, request_ref)
-
-        for from <- :queue.to_list(pending) do
-          Connection.reply(from, {:error, reason})
-        end
-
-        send(pid, {:etcd_watch_error, reason})
+      {:watch, watching_process} ->
+        send(watching_process, {:etcd_watch_error, reason})
         pending_requests = Map.delete(state.pending_requests, request_ref)
-        watch_streams = Map.delete(state.watch_streams, request_ref)
+        watch_streams = Map.delete(state.watch_streams, watching_process)
         %{state | pending_requests: pending_requests, watch_streams: watch_streams}
     end
   end
@@ -363,7 +359,7 @@ defmodule EtcdEx.Connection do
         case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
           {:ok, env} ->
             watch_streams = Map.delete(state.watch_streams, watching_process)
-            pending_requests = Map.delete(state.watch_streams, request_ref)
+            pending_requests = Map.delete(state.pending_requests, request_ref)
 
             state = %{
               state
@@ -378,5 +374,38 @@ defmodule EtcdEx.Connection do
             {{:error, reason}, %{state | env: env}}
         end
     end
+  end
+
+  defp reconnect_watches(state) do
+    state.watch_streams
+    |> Map.keys()
+    |> Enum.reduce(state, fn watching_process, state ->
+        case EtcdEx.Mint.open_watch_stream(state.env) do
+          {:ok, env, request_ref} ->
+            reconnect_watch(watching_process, request_ref, %{state | env: env})
+
+          {:error, env, reason} ->
+            Logger.warn("error reopening watch streams: #{inspect(reason)}")
+            %{state | env: env}
+        end
+    end)
+  end
+
+  defp reconnect_watch(watching_process, request_ref, state) do
+    %{watch_stream: watch_stream} = Map.fetch!(state.watch_streams, watching_process)
+
+    {env, watch_stream} = EtcdEx.WatchStream.reconnect(state.env, request_ref, watch_stream)
+
+    pending_requests =
+      Map.put(state.pending_requests, request_ref, {:watch, watching_process})
+
+    watch_streams =
+      Map.update!(
+        state.watch_streams,
+        watching_process,
+        &%{&1 | watch_stream: watch_stream, request_ref: request_ref}
+      )
+
+    %{state | env: env, pending_requests: pending_requests, watch_streams: watch_streams}
   end
 end

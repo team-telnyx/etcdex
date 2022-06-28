@@ -4,6 +4,8 @@ defmodule EtcdEx.WatchStream do
 
   alias EtcdEx.Types
 
+  require Logger
+
   @type watch_ref :: reference
 
   @opaque t() :: %__MODULE__{}
@@ -70,7 +72,7 @@ defmodule EtcdEx.WatchStream do
           {:ok, EtcdEx.Mint.t(), t,
            :empty
            | {:etcd_watch_created, watch_ref}
-           | {:etcd_watch_notify, EtcdEx.Proto.WatchResponse}
+           | {:etcd_watch_notify, watch_ref, EtcdEx.Proto.WatchResponse}
            | {:etcd_watch_notify_progress, EtcdEx.Proto.WatchResponse}
            | {:etcd_watch_canceled, watch_ref, reason :: any}}
           | {:error, EtcdEx.Mint.t(), reason :: any}
@@ -113,8 +115,8 @@ defmodule EtcdEx.WatchStream do
           :empty ->
             {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
 
-          watch_ref ->
-            %{key: key, opts: opts} = Map.fetch!(watches, watch_ref)
+          next_watch_ref ->
+            %{key: key, opts: opts} = Map.fetch!(watches, next_watch_ref)
 
             case EtcdEx.Mint.watch(env, request_ref, key, opts) do
               {:ok, env} -> {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
@@ -190,7 +192,43 @@ defmodule EtcdEx.WatchStream do
         %{events: pending_events} = Map.fetch!(watches, watch_ref)
         watches = Map.update!(watches, watch_ref, &%{&1 | events: []})
         watch_response = %{watch_response | events: pending_events ++ events}
-        {:ok, env, %{watch_stream | watches: watches}, {:etcd_watch_notify, watch_response}}
+
+        {:ok, env, %{watch_stream | watches: watches},
+         {:etcd_watch_notify, watch_ref, watch_response}}
+    end
+  end
+
+  @doc false
+  def reconnect(env, request_ref, watch_stream) do
+    %{watches: watches} = watch_stream
+
+    {pending_reqs, watches} =
+      watches
+      |> Map.keys()
+      |> Enum.reduce({:queue.new(), watches}, fn
+        watch_ref, {pending_reqs, watches} ->
+          watches = Map.update!(watches, watch_ref, &%{&1 | events: [], watch_id: nil})
+          pending_reqs = :queue.in_r(watch_ref, pending_reqs)
+          {pending_reqs, watches}
+      end)
+
+    watch_stream = %{watch_stream | pending_reqs: pending_reqs, watches: watches, watch_ids: %{}}
+
+    case :queue.peek(pending_reqs) do
+      :empty ->
+        {env, watch_stream}
+
+      {:value, watch_ref} ->
+        %{key: key, opts: opts} = Map.fetch!(watches, watch_ref)
+
+        case EtcdEx.Mint.watch(env, request_ref, key, opts) do
+          {:ok, env} ->
+            {env, watch_stream}
+
+          {:error, env, reason} ->
+            Logger.warn("error while reconnecting watches: #{inspect(reason)}")
+            {env, watch_stream}
+        end
     end
   end
 end
