@@ -28,6 +28,9 @@ defmodule EtcdEx do
 
   @type conn :: EtcdEx.Connection.t()
 
+  @type watch_ref :: reference
+  @type watching_process :: pid
+
   @default_timeout :timer.seconds(5)
 
   @doc """
@@ -192,7 +195,7 @@ defmodule EtcdEx do
   @spec get(conn, Types.key(), [Types.get_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
   def get(conn, key, opts \\ [], timeout \\ @default_timeout)
-      when is_atom(conn) and is_binary(key) and is_list(opts) do
+      when is_binary(key) and is_list(opts) do
     EtcdEx.Connection.unary(conn, :get, [key, opts], timeout)
   end
 
@@ -218,7 +221,7 @@ defmodule EtcdEx do
   @spec put(conn, Types.key(), Types.value(), [Types.put_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
   def put(conn, key, value, opts \\ [], timeout \\ @default_timeout)
-      when is_atom(conn) and is_binary(key) and is_binary(value) and is_list(opts) do
+      when is_binary(key) and is_binary(value) and is_list(opts) do
     EtcdEx.Connection.unary(conn, :put, [key, value, opts], timeout)
   end
 
@@ -240,147 +243,6 @@ defmodule EtcdEx do
           {:ok, any} | {:error, Mint.Types.error()}
   def delete(conn, key, opts \\ [], timeout \\ @default_timeout) do
     EtcdEx.Connection.unary(conn, :delete, [key, opts], timeout)
-  end
-
-  @doc """
-  Opens a watch stream.
-
-  An etcd3 watch waits for changes to keys by continuously watching from a given
-  revision, either current or historical, and streams key updates back to the client.
-
-  ## Watch streams
-
-  Watches are long-running requests and use gRPC streams to stream event data. A watch
-  stream is bi-directional; the client writes to the stream to establish watches and
-  reads to receive watch events. A single watch stream can multiplex many distinct
-  watches by tagging events with per-watch identifiers. This multiplexing helps reducing
-  the memory footprint and connection overhead on the core etcd cluster.
-
-  Watches make three guarantees about events:
-
-    * Ordered - events are ordered by revision; an event will never appear on a watch
-      if it precedes an event in time that has already been posted.
-    * Reliable - a sequence of events will never drop any subsequence of events; if
-      there are events ordered in time as `a` < `b` < `c`, then if the watch receives events
-      `a` and `c`, it is guaranteed to receive `b`.
-    * Atomic - a list of events is guaranteed to encompass complete revisions; updates in
-      the same revision over multiple keys will not be split over several lists of events.
-  """
-  @spec open_watch_stream(conn, timeout) ::
-          {:ok, Mint.Types.request_ref()} | {:error, Mint.Types.error()}
-  def open_watch_stream(conn, timeout \\ @default_timeout) do
-    EtcdEx.Connection.open_watch_stream(conn, timeout)
-  end
-
-  @doc """
-  Watches changes on keys.
-
-  On success, the return value has the form `{:ok, watch, watch_id}`. The `watch` is
-  a `pid` to a background process used to monitor the key-value changes. The `watch_id`
-  represents a stream of changes over the created watch.
-
-  Watch processes can be reused to monitor multiple key/ranges, see `reuse_watch/3`.
-
-  ## Options
-
-  `watch` accepts the following options:
-
-    * `:range_end` - the key range to watch.
-    * `:prefix` - if true, sets up `:range_end` as `a+1`.
-    * `:from_key` - if true, sets up `:range_end` as `key` to represent all keys after
-      `key` argument.
-    * `:start_revision` - an optional revision for where to inclusively begin watching.
-      If not given, it will stream events following the revision of the watch creation
-      response header revision. The entire available event history can be watched starting
-      from the last compaction revision.
-    * `:filters` - A list of event types to filter away at server side.
-    * `:prev_kv` - when set, the watch receives the key-value data from before the event
-      happens. This is useful for knowing what data has been overwritten.
-    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
-
-  ## Watch events
-
-  In response to a `watch`, the client process receives an `:etcd_watch_response` message:
-
-      {:etcd_watch_response,
-        %{
-          header: %{
-            cluster_id: 16182920199522267672,
-            member_id: 9975446501980398855,
-            raft_term: 13,
-            revision: 47068291
-          },
-          watch_id: 1,
-          created: false,
-          canceled: false,
-          compact_revision: 0,
-          events: [
-            ...
-          ]
-        }}
-
-    * `:watch_id` - the ID of the watch that corresponds to the response.
-    * `:created` - set to `true` if the response is for a create watch request. The
-      client should store the ID and expect to receive events for the watch on the
-      stream. All events sent to the created watcher will have the same `watch_id`.
-    * `:canceled` - set to `true` if the response is for a cancel watch request. No
-      further events will be sent to the canceled watcher.
-    * `:compact_revision` - set to the minimum historical revision available to etcd
-      if a watcher tries watching at a compacted revision. This happens when creating
-      a watcher at a compacted revision or the watcher cannot catch up with the
-      progress of the key-value store. The watcher will be canceled; creating new
-      watches with the same start_revision will fail.
-    * `:events` - a list of new events in sequence corresponding to the given watch ID.
-
-  ## Events
-
-  Every change to every key is represented with event messages. An event message
-  provides both the data and the type of update:
-
-      %{
-        kv: %{
-          create_revision: 45178185,
-          key: "foo",
-          lease: 4658271320497843197,
-          mod_revision: 47068291,
-          value: "bar",
-          version: 112815
-        },
-        type: :PUT
-      }
-
-    * `:type` - the kind of event. A `:PUT` type indicates new data has been stored to
-      the key. A `:DELETE` indicates the key was deleted.
-    * `:kv` - the KeyValue associated with the event. A `:PUT` event contains current
-      key-value pair. A `:PUT` event with `:version` 1 indicates the creation of a key.
-      A `:DELETE` event contains the deleted key with its modification revision set to
-      the revision of deletion.
-    * `:prev_kv` - the key-value pair for the key from the revision immediately before
-      the event. To save bandwidth, it is only filled out if the watch has explicitly
-      enabled it.
-  """
-  @spec watch(conn, Mint.Types.request_ref(), Types.key(), [Types.watch_opt()], timeout) ::
-          {:ok, Types.watch_id()} | {:error, Mint.Types.error()}
-  def watch(conn, watch_ref, key, opts \\ [], timeout \\ @default_timeout) do
-    EtcdEx.Connection.watch(conn, watch_ref, key, opts, timeout)
-  end
-
-  @doc """
-  Cancels a watch.
-  """
-  @spec cancel_watch(conn, Mint.Types.request_ref(), Types.watch_id(), timeout) ::
-          :ok | {:error, Mint.Types.error()}
-  def cancel_watch(conn, watch_ref, watch_id, timeout \\ @default_timeout) when is_pid(conn) do
-    EtcdEx.Connection.cancel_watch(conn, watch_ref, watch_id, timeout)
-  end
-
-  @doc """
-  Closes a watch stream.
-  """
-  @spec close_watch_stream(conn, Mint.Types.request_ref(), timeout) ::
-          :ok | {:error, Mint.Types.error()}
-  def close_watch_stream(conn, request_ref, timeout \\ @default_timeout) do
-    EtcdEx.Connection.close_watch_stream(conn, request_ref, timeout)
   end
 
   @doc """
@@ -420,8 +282,7 @@ defmodule EtcdEx do
     * `:TTL` - is the server selected time-to-live, in seconds, for the lease.
   """
   @spec grant(conn, Types.ttl(), timeout) :: {:ok, any} | {:error, Mint.Types.error()}
-  def grant(conn, ttl, timeout \\ @default_timeout)
-      when is_atom(conn) and is_integer(ttl) and ttl >= 0 do
+  def grant(conn, ttl, timeout \\ @default_timeout) when is_integer(ttl) and ttl >= 0 do
     EtcdEx.Connection.unary(conn, :grant, [ttl], timeout)
   end
 
@@ -536,5 +397,133 @@ defmodule EtcdEx do
   @spec leases(conn, timeout) :: {:ok, any} | {:error, Mint.Types.error()}
   def leases(conn, timeout \\ @default_timeout) do
     EtcdEx.Connection.unary(conn, :leases, [], timeout)
+  end
+
+  @doc """
+  Opens a watch stream and watches for changes on keys.
+
+  An etcd3 watch waits for changes to keys by continuously watching from a given
+  revision, either current or historical, and streams key updates back to the client.
+
+  On success, the return value has the form `{:ok, watch_stream}`. The `watch_stream` is
+  a reference to the created stream, that can be used to cancel/modify the stream at any
+  moment.
+
+  Watch streams can modified by passing different `watch_params` to a previously created
+  `watch_stream`. In order to cancel the watch, use `cancel_watch`.
+
+  Watch streams are recreated on reconnections.
+
+  ## Watch streams
+
+  Watches are long-running requests and use gRPC streams to stream event data. A watch
+  stream is bi-directional; the client writes to the stream to establish watches and
+  reads to receive watch events. A single watch stream can multiplex many distinct
+  watches by tagging events with per-watch identifiers. This multiplexing helps reducing
+  the memory footprint and connection overhead on the core etcd cluster.
+
+  Watches make three guarantees about events:
+
+    * Ordered - events are ordered by revision; an event will never appear on a watch
+      if it precedes an event in time that has already been posted.
+    * Reliable - a sequence of events will never drop any subsequence of events; if
+      there are events ordered in time as `a` < `b` < `c`, then if the watch receives events
+      `a` and `c`, it is guaranteed to receive `b`.
+    * Atomic - a list of events is guaranteed to encompass complete revisions; updates in
+      the same revision over multiple keys will not be split over several lists of events.
+
+  ## Options
+
+  `watch_params` accepts the following options:
+
+    * `:range_end` - the key range to watch.
+    * `:prefix` - if true, sets up `:range_end` as `a+1`.
+    * `:from_key` - if true, sets up `:range_end` as `key` to represent all keys after
+      `key` argument.
+    * `:start_revision` - an optional revision for where to inclusively begin watching.
+      If not given, it will stream events following the revision of the watch creation
+      response header revision. The entire available event history can be watched starting
+      from the last compaction revision.
+    * `:filters` - A list of event types to filter away at server side.
+    * `:prev_kv` - when set, the watch receives the key-value data from before the event
+      happens. This is useful for knowing what data has been overwritten.
+    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
+
+  ## Watch events
+
+  In response to a `watch`, the client process receives an `:etcd_watch_response` message:
+
+      {:etcd_watch_response,
+        %{
+          header: %{
+            cluster_id: 16182920199522267672,
+            member_id: 9975446501980398855,
+            raft_term: 13,
+            revision: 47068291
+          },
+          watch_id: 1,
+          created: false,
+          canceled: false,
+          compact_revision: 0,
+          events: [
+            ...
+          ]
+        }}
+
+    * `:watch_id` - the ID of the watch that corresponds to the response. As watch
+      streams are recreated during reconnections, the watch ID is exposed only for
+      informative purposes.
+    * `:created` - set to `true` if the response is for a create watch request. The
+      client should store the ID and expect to receive events for the watch on the
+      stream. All events sent to the created watcher will have the same `watch_id`.
+    * `:canceled` - set to `true` if the response is for a cancel watch request. No
+      further events will be sent to the canceled watcher.
+    * `:compact_revision` - set to the minimum historical revision available to etcd
+      if a watcher tries watching at a compacted revision. This happens when creating
+      a watcher at a compacted revision or the watcher cannot catch up with the
+      progress of the key-value store. The watcher will be canceled; creating new
+      watches with the same start_revision will fail.
+    * `:events` - a list of new events in sequence corresponding to the given watch ID.
+
+  ## Events
+
+  Every change to every key is represented with event messages. An event message
+  provides both the data and the type of update:
+
+      %{
+        kv: %{
+          create_revision: 45178185,
+          key: "foo",
+          lease: 4658271320497843197,
+          mod_revision: 47068291,
+          value: "bar",
+          version: 112815
+        },
+        type: :PUT
+      }
+
+    * `:type` - the kind of event. A `:PUT` type indicates new data has been stored to
+      the key. A `:DELETE` indicates the key was deleted.
+    * `:kv` - the KeyValue associated with the event. A `:PUT` event contains current
+      key-value pair. A `:PUT` event with `:version` 1 indicates the creation of a key.
+      A `:DELETE` event contains the deleted key with its modification revision set to
+      the revision of deletion.
+    * `:prev_kv` - the key-value pair for the key from the revision immediately before
+      the event. To save bandwidth, it is only filled out if the watch has explicitly
+      enabled it.
+  """
+  @spec watch(conn, watching_process, Types.key(), [Types.watch_opt()], timeout) ::
+          :ok | {:error, Mint.Types.error()}
+  def watch(conn, watching_process, key, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.watch(conn, watching_process, key, opts, timeout)
+  end
+
+  @doc """
+  Cancels a watch.
+  """
+  @spec cancel_watch(conn, watching_process, timeout) ::
+          :ok | {:error, Mint.Types.error()}
+  def cancel_watch(conn, watching_process, timeout \\ @default_timeout) do
+    EtcdEx.Connection.cancel_watch(conn, watching_process, timeout)
   end
 end

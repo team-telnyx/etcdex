@@ -7,6 +7,8 @@ defmodule EtcdEx.Connection do
 
   alias EtcdEx.KeepAliveTimer
 
+  require Logger
+
   defstruct [
     :env,
     :endpoint,
@@ -28,20 +30,12 @@ defmodule EtcdEx.Connection do
     do: Connection.call(conn, {:unary, fun, args}, timeout)
 
   @doc false
-  def open_watch_stream(conn, timeout),
-    do: Connection.call(conn, :open_watch_stream, timeout)
+  def watch(conn, watching_process, key, opts, timeout),
+    do: Connection.call(conn, {:watch, watching_process, key, opts}, timeout)
 
   @doc false
-  def watch(conn, watch_ref, key, opts, timeout),
-    do: Connection.call(conn, {:watch, watch_ref, key, opts}, timeout)
-
-  @doc false
-  def cancel_watch(conn, watch_ref, watch_id, timeout),
-    do: Connection.call(conn, {:cancel_watch, watch_ref, watch_id}, timeout)
-
-  @doc false
-  def close_watch_stream(conn, request_ref, timeout),
-    do: Connection.call(conn, {:close_watch_stream, request_ref}, timeout)
+  def cancel_watch(conn, watching_process, timeout),
+    do: Connection.call(conn, {:cancel_watch, watching_process}, timeout)
 
   @doc false
   def child_spec(options) do
@@ -132,92 +126,16 @@ defmodule EtcdEx.Connection do
     end
   end
 
-  def handle_call(:open_watch_stream, {pid, _tag}, state) do
-    case EtcdEx.Mint.open_watch_stream(state.env) do
-      {:ok, env, request_ref} ->
-        pending_requests = Map.put(state.pending_requests, request_ref, {:watch, pid})
-        watch_streams = Map.put(state.watch_streams, request_ref, %{pending: :queue.new()})
+  def handle_call({:watch, watching_process, key, opts}, _from, state) do
+    {reply, state} = do_watch(watching_process, key, opts, state)
 
-        state = %{
-          state
-          | env: env,
-            pending_requests: pending_requests,
-            watch_streams: watch_streams
-        }
-
-        {:reply, {:ok, request_ref}, state}
-
-      {:error, env, reason} ->
-        {:reply, {:error, reason}, %{state | env: env}}
-    end
+    {:reply, reply, state}
   end
 
-  def handle_call({:watch, request_ref, key, opts}, {pid, _tag} = from, state) do
-    case Map.get(state.pending_requests, request_ref) do
-      nil ->
-        {:reply, {:error, :not_found}, state}
+  def handle_call({:cancel_watch, watching_process}, _from, state) do
+    {reply, state} = do_cancel_watch(watching_process, state)
 
-      {:watch, ^pid} ->
-        case EtcdEx.Mint.watch(state.env, request_ref, key, opts) do
-          {:ok, env} ->
-            %{pending: pending} = Map.fetch!(state.watch_streams, request_ref)
-
-            watch_streams =
-              Map.put(state.watch_streams, request_ref, %{pending: :queue.in(from, pending)})
-
-            {:noreply, %{state | env: env, watch_streams: watch_streams}}
-
-          {:error, env, reason} ->
-            {:reply, {:error, reason}, %{state | env: env}}
-        end
-
-      {:watch, _pid} ->
-        {:reply, {:error, :not_on_controlling_process}, state}
-    end
-  end
-
-  def handle_call({:cancel_watch, request_ref, watch_id}, {pid, _tag} = from, state) do
-    case Map.get(state.pending_requests, request_ref) do
-      nil ->
-        {:reply, {:error, :not_found}, state}
-
-      {:watch, ^pid} ->
-        case EtcdEx.Mint.cancel_watch(state.env, request_ref, watch_id) do
-          {:ok, env} ->
-            %{pending: pending} = Map.fetch!(state.watch_streams, request_ref)
-
-            watch_streams =
-              Map.put(state.watch_streams, request_ref, %{pending: :queue.in(from, pending)})
-
-            {:noreply, %{state | env: env, watch_streams: watch_streams}}
-
-          {:error, env, reason} ->
-            {:reply, {:error, reason}, %{state | env: env}}
-        end
-
-      {:watch, _pid} ->
-        {:reply, {:error, :not_on_controlling_process}, state}
-    end
-  end
-
-  def handle_call({:close_watch_stream, request_ref}, {pid, _tag}, state) do
-    case Map.get(state.pending_requests, request_ref) do
-      nil ->
-        {:reply, {:error, :not_found}, state}
-
-      {:watch, ^pid} ->
-        case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
-          {:ok, env} ->
-            pending_requests = Map.delete(state.pending_requests, request_ref)
-            {:reply, :ok, %{state | env: env, pending_requests: pending_requests}}
-
-          {:error, env, reason} ->
-            {:reply, {:error, reason}, %{state | env: env}}
-        end
-
-      {:watch, _pid} ->
-        {:reply, {:error, :not_on_controlling_process}, state}
-    end
+    {:reply, reply, state}
   end
 
   @impl Connection
@@ -286,7 +204,7 @@ defmodule EtcdEx.Connection do
   defp process_response({:headers, _request_ref, _headers}, state),
     do: state
 
-  defp process_response({:data, request_ref, data}, state) do
+  defp process_response({:data, request_ref, data} = response, state) do
     case Map.get(state.pending_requests, request_ref) do
       nil ->
         # This is the case when caller closes the watch stream, but there are messages
@@ -299,25 +217,35 @@ defmodule EtcdEx.Connection do
 
         %{state | pending_requests: pending_requests}
 
-      {:watch, pid} ->
-        case data do
-          %{created: true, watch_id: watch_id} ->
-            %{pending: pending} = Map.fetch!(state.watch_streams, request_ref)
-            {{:value, from}, pending} = :queue.out_r(pending)
-            Connection.reply(from, {:ok, watch_id})
-            watch_streams = Map.put(state.watch_streams, request_ref, %{pending: pending})
-            %{state | watch_streams: watch_streams}
+      {:watch, watching_process} ->
+        %{watch_stream: watch_stream} = Map.fetch!(state.watch_streams, watching_process)
 
-          %{canceled: true} ->
-            %{pending: pending} = Map.fetch!(state.watch_streams, request_ref)
-            {{:value, from}, pending} = :queue.out_r(pending)
-            Connection.reply(from, :ok)
-            watch_streams = Map.put(state.watch_streams, request_ref, %{pending: pending})
-            %{state | watch_streams: watch_streams}
+        case EtcdEx.WatchStream.stream(state.env, request_ref, watch_stream, response) do
+          {:ok, env, watch_stream, :empty} ->
+            watch_streams =
+              Map.update!(
+                state.watch_streams,
+                watching_process,
+                &%{&1 | watch_stream: watch_stream}
+              )
 
-          _ ->
-            send(pid, {:etcd_watch_response, data})
-            state
+            %{state | env: env, watch_streams: watch_streams}
+
+          {:ok, env, watch_stream, response} ->
+            send(watching_process, response)
+
+            watch_streams =
+              Map.update!(
+                state.watch_streams,
+                watching_process,
+                &%{&1 | watch_stream: watch_stream}
+              )
+
+            %{state | env: env, watch_streams: watch_streams}
+
+          {:error, env, reason} ->
+            Logger.debug("error when sending request: #{inspect(reason)}")
+            %{state | env: env}
         end
     end
   end
@@ -366,5 +294,89 @@ defmodule EtcdEx.Connection do
   defp process_response({:pong, request_ref}, state) do
     keep_alive_timer = KeepAliveTimer.clear_after_timer(state.keep_alive_timer, request_ref)
     %{state | keep_alive_timer: keep_alive_timer}
+  end
+
+  defp do_watch(watching_process, key, opts, state) do
+    with {:ok, state} <- do_open_watch_stream(watching_process, state),
+         {:ok, state} <- do_send_watch(watching_process, key, opts, state) do
+      {:ok, state}
+    else
+      {:error, state, reason} -> {{:error, reason}, state}
+    end
+  end
+
+  defp do_open_watch_stream(watching_process, state) do
+    case Map.get(state.watch_streams, watching_process) do
+      nil ->
+        case EtcdEx.Mint.open_watch_stream(state.env) do
+          {:ok, env, request_ref} ->
+            watch_stream = %{
+              watch_stream: EtcdEx.WatchStream.new(),
+              request_ref: request_ref
+            }
+
+            watch_streams = Map.put(state.watch_streams, watching_process, watch_stream)
+
+            pending_requests =
+              Map.put(state.pending_requests, request_ref, {:watch, watching_process})
+
+            state = %{
+              state
+              | env: env,
+                watch_streams: watch_streams,
+                pending_requests: pending_requests
+            }
+
+            {:ok, state}
+
+          {:error, env, reason} ->
+            {:error, %{state | env: env}, reason}
+        end
+
+      _ ->
+        {:ok, state}
+    end
+  end
+
+  defp do_send_watch(watching_process, key, opts, state) do
+    %{watch_stream: watch_stream, request_ref: request_ref} =
+      Map.fetch!(state.watch_streams, watching_process)
+
+    case EtcdEx.WatchStream.watch(state.env, request_ref, watch_stream, key, opts) do
+      {:ok, env, watch_stream, _watch_ref} ->
+        watch_streams =
+          Map.update!(state.watch_streams, watching_process, &%{&1 | watch_stream: watch_stream})
+
+        {:ok, %{state | env: env, watch_streams: watch_streams}}
+
+      {:error, env, reason} ->
+        {:error, %{state | env: env}, reason}
+    end
+  end
+
+  defp do_cancel_watch(watching_process, state) do
+    case Map.get(state.watch_streams, watching_process) do
+      nil ->
+        {{:error, :not_found}, state}
+
+      %{request_ref: request_ref} ->
+        case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
+          {:ok, env} ->
+            watch_streams = Map.delete(state.watch_streams, watching_process)
+            pending_requests = Map.delete(state.watch_streams, request_ref)
+
+            state = %{
+              state
+              | env: env,
+                watch_streams: watch_streams,
+                pending_requests: pending_requests
+            }
+
+            {:ok, state}
+
+          {:error, env, reason} ->
+            {{:error, reason}, %{state | env: env}}
+        end
+    end
   end
 end
