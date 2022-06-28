@@ -200,8 +200,9 @@ defmodule EtcdEx.WatchStream do
         {:ok, env, watch_stream, {:etcd_watch_notify_progress, watch_response}}
 
       watch_ref ->
-        %{events: pending_events} = Map.fetch!(watches, watch_ref)
-        watches = Map.update!(watches, watch_ref, &%{&1 | events: []})
+        %{events: pending_events, opts: opts} = Map.fetch!(watches, watch_ref)
+        opts = Keyword.put(opts, :start_revision, watch_response.header.revision + 1)
+        watches = Map.update!(watches, watch_ref, &%{&1 | events: [], opts: opts})
         watch_response = %{watch_response | events: pending_events ++ events}
 
         {:ok, env, %{watch_stream | watches: watches},
