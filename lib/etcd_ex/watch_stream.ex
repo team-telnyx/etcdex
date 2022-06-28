@@ -127,11 +127,15 @@ defmodule EtcdEx.WatchStream do
   end
 
   @doc false
-  defp stream_data(env, _request_ref, watch_stream, %{
-         canceled: true,
-         cancel_reason: reason,
-         watch_id: watch_id
-       }) do
+  defp stream_data(
+         env,
+         _request_ref,
+         watch_stream,
+         %{
+           canceled: true,
+           watch_id: watch_id
+         } = data
+       ) do
     %{watches: watches, watch_ids: watch_ids} = watch_stream
 
     case Map.get(watch_ids, watch_id) do
@@ -142,6 +146,13 @@ defmodule EtcdEx.WatchStream do
         watches = Map.delete(watches, watch_ref)
         watch_ids = Map.delete(watch_ids, watch_id)
         watch_stream = %{watch_stream | watches: watches, watch_ids: watch_ids}
+
+        reason =
+          case data do
+            %{compact_revision: rev} when rev > 0 -> {:compacted, rev}
+            %{cancel_reason: reason} -> reason
+          end
+
         {:ok, env, watch_stream, {:etcd_watch_canceled, watch_ref, reason}}
     end
   end

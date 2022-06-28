@@ -526,4 +526,13 @@ defmodule EtcdEx do
   def cancel_watch(conn, watching_process, timeout \\ @default_timeout) do
     EtcdEx.Connection.cancel_watch(conn, watching_process, timeout)
   end
+
+  @doc """
+  List watches started by the watching process.
+  """
+  @spec list_watches(conn, watching_process, timeout) ::
+          [{watch_ref, Types.key(), [Types.watch_opt()]}]
+  def list_watches(conn, watching_process, timeout \\ @default_timeout) do
+    EtcdEx.Connection.list_watches(conn, watching_process, timeout)
+  end
 end

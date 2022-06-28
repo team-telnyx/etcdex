@@ -38,6 +38,10 @@ defmodule EtcdEx.Connection do
     do: Connection.call(conn, {:cancel_watch, watching_process}, timeout)
 
   @doc false
+  def list_watches(conn, watching_process, timeout),
+    do: Connection.call(conn, {:list_watches, watching_process}, timeout)
+
+  @doc false
   def child_spec(options) do
     %{
       id: __MODULE__,
@@ -106,9 +110,11 @@ defmodule EtcdEx.Connection do
       {_request_ref, {:watch, _watching_process}} -> :ok
     end)
 
-    state.env
-    |> EtcdEx.Mint.unwrap()
-    |> Mint.HTTP.close()
+    unless state.env == nil do
+      state.env
+      |> EtcdEx.Mint.unwrap()
+      |> Mint.HTTP.close()
+    end
 
     {:connect, :reconnect, %{state | env: nil, pending_requests: %{}}}
   end
@@ -136,6 +142,22 @@ defmodule EtcdEx.Connection do
 
   def handle_call({:cancel_watch, watching_process}, _from, state) do
     {reply, state} = do_cancel_watch(watching_process, state)
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:list_watches, watching_process}, _from, state) do
+    reply =
+      case Map.get(state.watch_streams, watching_process) do
+        nil ->
+          []
+
+        %{watch_stream: watch_stream} ->
+          watch_stream.watches
+          |> Enum.map(fn {watch_ref, %{key: key, opts: opts}} ->
+            {watch_ref, key, opts}
+          end)
+      end
 
     {:reply, reply, state}
   end
@@ -380,14 +402,14 @@ defmodule EtcdEx.Connection do
     state.watch_streams
     |> Map.keys()
     |> Enum.reduce(state, fn watching_process, state ->
-        case EtcdEx.Mint.open_watch_stream(state.env) do
-          {:ok, env, request_ref} ->
-            reconnect_watch(watching_process, request_ref, %{state | env: env})
+      case EtcdEx.Mint.open_watch_stream(state.env) do
+        {:ok, env, request_ref} ->
+          reconnect_watch(watching_process, request_ref, %{state | env: env})
 
-          {:error, env, reason} ->
-            Logger.warn("error reopening watch streams: #{inspect(reason)}")
-            %{state | env: env}
-        end
+        {:error, env, reason} ->
+          Logger.warn("error reopening watch streams: #{inspect(reason)}")
+          %{state | env: env}
+      end
     end)
   end
 
@@ -396,8 +418,7 @@ defmodule EtcdEx.Connection do
 
     {env, watch_stream} = EtcdEx.WatchStream.reconnect(state.env, request_ref, watch_stream)
 
-    pending_requests =
-      Map.put(state.pending_requests, request_ref, {:watch, watching_process})
+    pending_requests = Map.put(state.pending_requests, request_ref, {:watch, watching_process})
 
     watch_streams =
       Map.update!(
