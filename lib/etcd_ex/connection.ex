@@ -163,6 +163,39 @@ defmodule EtcdEx.Connection do
   end
 
   @impl Connection
+  def handle_info({:DOWN, _ref, :process, watching_process, _info}, state) do
+    Process.demonitor(watching_process)
+
+    state =
+      case Map.get(state.watch_streams, watching_process) do
+        nil ->
+          state
+
+        %{request_ref: request_ref} ->
+          case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
+            {:ok, env} ->
+              %{state | env: env}
+
+            {:error, env, reason} ->
+              Logger.warn("error closing watch stream: #{inspect(reason)}")
+              %{state | env: env}
+          end
+      end
+
+    watch_streams = Map.delete(state.watch_streams, watching_process)
+
+    pending_requests =
+      Map.reject(state.pending_requests, &match?({_, {:watch, ^watching_process}}, &1))
+
+    state = %{
+      state
+      | watch_streams: watch_streams,
+        pending_requests: pending_requests
+    }
+
+    {:noreply, state}
+  end
+
   def handle_info(:keep_alive, state) do
     case Mint.HTTP2.ping(state.env.conn) do
       {:ok, conn, request_ref} ->
@@ -333,6 +366,7 @@ defmodule EtcdEx.Connection do
               request_ref: request_ref
             }
 
+            Process.monitor(watching_process)
             watch_streams = Map.put(state.watch_streams, watching_process, watch_stream)
 
             pending_requests =
@@ -380,6 +414,8 @@ defmodule EtcdEx.Connection do
       %{request_ref: request_ref} ->
         case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
           {:ok, env} ->
+            Process.demonitor(watching_process)
+
             watch_streams = Map.delete(state.watch_streams, watching_process)
             pending_requests = Map.delete(state.pending_requests, request_ref)
 
