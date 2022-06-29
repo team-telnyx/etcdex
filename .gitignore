@@ -25,6 +25,9 @@ etcdex-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# Etcd db files
+/default.etcd
+
 ### Vim
 # Swap
 [._]*.s[a-v][a-z]

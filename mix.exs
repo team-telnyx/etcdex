@@ -6,29 +6,43 @@ defmodule EtcdEx.MixProject do
       app: :etcdex,
       version: "0.1.0",
       elixir: "~> 1.13",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
       package: package(),
       name: "EtcdEx",
       source_url: "https://github.com/team-telnyx/etcdex",
-      description: description()
+      description: description(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
-    [
-      extra_applications: [:logger]
-    ]
+    case Mix.env() do
+      :test ->
+        [extra_applications: [:logger, :inets]]
+
+      _ ->
+        [extra_applications: [:logger]]
+    end
   end
 
-  # Run "mix help deps" to learn about dependencies.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   defp deps do
     [
       {:mint, "~> 1.0"},
       {:protobuf, "~> 0.10"},
       {:connection, "~> 1.1"},
+      {:excoveralls, "~> 0.10", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
