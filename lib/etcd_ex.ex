@@ -409,7 +409,7 @@ defmodule EtcdEx do
   a reference to the created stream, that can be used to cancel/modify the stream at any
   moment.
 
-  Watch streams can modified by passing different `watch_params` to a previously created
+  Watch streams can be modified by passing different `watch_params` to a previously created
   `watch_stream`. In order to cancel the watch, use `cancel_watch`.
 
   Watch streams are recreated on reconnections.
