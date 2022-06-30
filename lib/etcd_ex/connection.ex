@@ -98,7 +98,7 @@ defmodule EtcdEx.Connection do
         {:ok, reconnect_watches(state)}
 
       {:error, _reason} ->
-        {:backoff, @default_backoff, state}
+        {:backoff, Keyword.get(state.options, :backoff, @default_backoff), state}
     end
   end
 

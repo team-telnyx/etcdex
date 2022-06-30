@@ -2,9 +2,19 @@ defmodule EtcdExTest do
   use EtcdCase, async: false
   use ExUnitProperties
 
-  setup %{etcdctl_path: etcdctl_path} do
+  setup_all do
+    # Clean up any remainings from past executions
+    File.rm_rf!("default.etcd")
+
+    proc_ref = start_etcd()
+    on_exit(fn -> stop_etcd(proc_ref) end)
+
+    :ok
+  end
+
+  setup do
     # Make sure etcd is totally empty
-    System.cmd(etcdctl_path, ["del", "", "--prefix"])
+    {_, 0} = etcdctl(["del", "", "--prefix"])
 
     {:ok, conn: start_supervised!(EtcdEx)}
   end
@@ -122,13 +132,12 @@ defmodule EtcdExTest do
       @tag params: {kvs, get_params, expected}
       test "#{inspect(get_params)} in #{inspect(kvs)}", %{
         conn: conn,
-        etcdctl_path: etcdctl_path,
         params: params
       } do
         {kvs, get_params, expected} = params
 
         for {key, value} <- kvs do
-          {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+          {_, 0} = etcdctl(["put", key, value])
         end
 
         {:ok, %{kvs: kvs}} = apply(EtcdEx, :get, [conn] ++ get_params)
@@ -138,25 +147,25 @@ defmodule EtcdExTest do
     end
 
     @tag timeout: :infinity
-    test "to count", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "to count", %{conn: conn} do
       key_value_generator = map_of(string(?a..?z, min_length: 1), string(?a..?z, min_length: 1))
 
       check all(kvs <- key_value_generator, max_runs: 20) do
         for {key, value} <- kvs do
-          {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+          {_, 0} = etcdctl(["put", key, value])
         end
 
         {:ok, %{count: count}} = EtcdEx.get(conn, <<0>>, from_key: true, count_only: true)
         assert count == Enum.count(kvs)
 
-        System.cmd(etcdctl_path, ["del", "", "--from-key"])
+        etcdctl(["del", "", "--from-key"])
       end
     end
 
-    test "with revision", %{conn: conn, etcdctl_path: etcdctl_path} do
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+    test "with revision", %{conn: conn} do
+      {_, 0} = etcdctl(["put", "foo", "bar"])
       {:ok, %{header: %{revision: revision}}} = EtcdEx.get(conn, "foo")
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "baz"])
+      {_, 0} = etcdctl(["put", "foo", "baz"])
 
       assert {:ok, %{kvs: [%{key: "foo", value: "bar"}]}} =
                EtcdEx.get(conn, "foo", revision: revision)
@@ -167,10 +176,10 @@ defmodule EtcdExTest do
   end
 
   describe "put" do
-    test "using single key-value", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "using single key-value", %{conn: conn} do
       {:ok, _} = EtcdEx.put(conn, "foo", "bar")
 
-      {resp, 0} = System.cmd(etcdctl_path, ["get", "foo"])
+      {resp, 0} = etcdctl(["get", "foo"])
       assert ["foo", "bar"] == String.split(resp, "\n", trim: true)
     end
 
@@ -207,12 +216,12 @@ defmodule EtcdExTest do
   end
 
   describe "delete" do
-    test "simple", %{conn: conn, etcdctl_path: etcdctl_path} do
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+    test "simple", %{conn: conn} do
+      {_, 0} = etcdctl(["put", "foo", "bar"])
 
       {:ok, %{deleted: 1}} = EtcdEx.delete(conn, "foo")
 
-      {resp, 0} = System.cmd(etcdctl_path, ["get", "foo"])
+      {resp, 0} = etcdctl(["get", "foo"])
       assert [] == String.split(resp, "\n", trim: true)
     end
 
@@ -220,21 +229,21 @@ defmodule EtcdExTest do
       assert {:ok, %{deleted: 0}} = EtcdEx.delete(conn, "foo")
     end
 
-    test "with previous key", %{conn: conn, etcdctl_path: etcdctl_path} do
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+    test "with previous key", %{conn: conn} do
+      {_, 0} = etcdctl(["put", "foo", "bar"])
 
       assert {:ok, %{deleted: 1, prev_kvs: [%{key: "foo", value: "bar"}]}} =
                EtcdEx.delete(conn, "foo", prev_kv: true)
     end
 
-    test "with prefix", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "with prefix", %{conn: conn} do
       for {key, value} <- [
             {"kex", "0"},
             {"key1", "1"},
             {"key2", "2"},
             {"kez", "3"}
           ] do
-        {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+        {_, 0} = etcdctl(["put", key, value])
       end
 
       assert {:ok, %{deleted: 2}} = EtcdEx.delete(conn, "key", prefix: true)
@@ -243,14 +252,14 @@ defmodule EtcdExTest do
       assert {:ok, %{kvs: [%{key: "kez", value: "3"}]}} = EtcdEx.get(conn, "kez")
     end
 
-    test "from key", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "from key", %{conn: conn} do
       for {key, value} <- [
             {"kex", "0"},
             {"key1", "1"},
             {"key2", "2"},
             {"kez", "3"}
           ] do
-        {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+        {_, 0} = etcdctl(["put", key, value])
       end
 
       assert {:ok, %{deleted: 3}} = EtcdEx.delete(conn, "key", from_key: true)
@@ -261,10 +270,10 @@ defmodule EtcdExTest do
   end
 
   describe "watch" do
-    test "put", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "put", %{conn: conn} do
       assert :ok = EtcdEx.watch(conn, self(), "foo")
 
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+      {_, 0} = etcdctl(["put", "foo", "bar"])
 
       assert_receive {:etcd_watch_created, ref} when is_reference(ref)
 
@@ -272,12 +281,13 @@ defmodule EtcdExTest do
                       %{events: [%{type: :PUT, kv: %{key: "foo", value: "bar"}}]}}
     end
 
-    test "delete", %{conn: conn, etcdctl_path: etcdctl_path} do
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
-      
-      assert :ok = EtcdEx.watch(conn, self(), "foo")
+    test "delete", %{conn: conn} do
+      {_, 0} = etcdctl(["put", "foo", "bar"])
 
-      {_, 0} = System.cmd(etcdctl_path, ["del", "foo"])
+      assert :ok = EtcdEx.watch(conn, self(), "foo")
+      assert [_] = EtcdEx.list_watches(conn, self())
+
+      {_, 0} = etcdctl(["del", "foo"])
 
       assert_receive {:etcd_watch_created, ref} when is_reference(ref)
 
@@ -285,34 +295,49 @@ defmodule EtcdExTest do
                       %{events: [%{type: :DELETE, kv: %{key: "foo", value: ""}}]}}
     end
 
-    test "compressed key", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "compressed key", %{conn: conn} do
       for {key, value} <- [
             {"foo", "0"},
             {"foo", "1"},
             {"foo", "2"}
           ] do
-        {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+        {_, 0} = etcdctl(["put", key, value])
       end
 
-      assert {"compacted revision" <> _, 0} = System.cmd(etcdctl_path, ["compact", "2"])
+      assert {"compacted revision" <> _, 0} = etcdctl(["compact", "2"])
 
       assert :ok = EtcdEx.watch(conn, self(), "foo", start_revision: 1)
+      assert [_] = EtcdEx.list_watches(conn, self())
 
       assert_receive {:etcd_watch_created, ref} when is_reference(ref)
 
       assert_receive {:etcd_watch_canceled, _ref, {:compacted, _}}
     end
 
-    test "cancel", %{conn: conn, etcdctl_path: etcdctl_path} do
+    test "cancel", %{conn: conn} do
       assert :ok = EtcdEx.watch(conn, self(), "foo")
       assert :ok = EtcdEx.cancel_watch(conn, self())
+      assert [] = EtcdEx.list_watches(conn, self())
 
-      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+      {_, 0} = etcdctl(["put", "foo", "bar"])
 
       refute_receive {:etcd_watch_created, _ref}
 
       refute_receive {:etcd_watch_notify, _ref, _response}
     end
 
+    test "watch watching process exits", %{conn: conn} do
+      task = Task.async(fn ->
+        :ok = EtcdEx.watch(conn, self(), "foo")
+
+        {_, 0} = etcdctl(["put", "foo", "bar"])
+
+        self()
+      end)
+
+      pid = Task.await(task)
+
+      assert [] = EtcdEx.list_watches(conn, pid)
+    end
   end
 end

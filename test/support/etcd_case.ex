@@ -6,117 +6,47 @@ defmodule EtcdCase do
 
   use ExUnit.CaseTemplate
 
-  @github_url "https://github.com/etcd-io/etcd/releases/download"
-  @etcd_version "v3.5.4"
+  @etcd_tools EtcdHelper.get_etcd()
+  @etcd_path elem(@etcd_tools, 0)
+  @etcdctl_path elem(@etcd_tools, 1)
 
-  setup_all do
-    {etcd_path, etcdctl_path} = get_etcd()
+  using do
+    quote do
+      # Import conveniences for testing with etcd
+      import EtcdCase
+    end
+  end
 
-    port = start_etcd(etcd_path)
+  @doc """
+  Starts etcd in the background.
+  """
+  @spec start_etcd(args :: [String.t()]) :: {port, os_pid :: integer}
+  def start_etcd(args \\ []) do
+    port = EtcdHelper.start_etcd(@etcd_path, args)
 
     os_pid =
       case Port.info(port, :os_pid) do
         {_, os_pid} -> os_pid
-      _ -> nil
-    end
+        _ -> nil
+      end
 
-    on_exit(fn -> System.cmd("kill", ["#{os_pid}"]) end)
-
-    {:ok, etcd_path: etcd_path, etcdctl_path: etcdctl_path}
+    {port, os_pid}
   end
 
-  def start_etcd(etcd_path) do
-    File.rm_rf!("default.etcd")
-
-    Port.open({:spawn, etcd_path}, [:exit_status, :binary, :stream, :stderr_to_stdout])
+  @doc """
+  Stop the background etcd instance.
+  """
+  @spec stop_etcd({port, os_pid :: integer}) ::
+          {Collectable.t(), exit_status :: non_neg_integer()}
+  def stop_etcd({_port, os_pid}) do
+    System.cmd("kill", ["#{os_pid}"])
   end
 
-  def get_etcd() do
-    case System.find_executable("etcd") do
-      nil ->
-        case os() do
-          "linux" ->
-            download_linux_etcd()
-
-          "darwin" ->
-            download_darwin_etcd()
-        end
-
-        {"test/bin/etcd", "test/bin/etcdctl"}
-
-      etcd_executable ->
-        {etcd_executable, System.find_executable("etcdctl")}
-    end
-  end
-
-  def download_linux_etcd() do
-    filename = "etcd-#{@etcd_version}-linux-#{arch()}.tar.gz"
-
-    if not File.exists?("test/bin/#{filename}") do
-      url = "#{@github_url}/#{@etcd_version}/#{filename}"
-
-      {:ok, resp} = :httpc.request(:get, {String.to_charlist(url), []}, [], body_format: :binary)
-
-      {{_, 200, _}, _headers, body} = resp
-
-      File.mkdir_p!("test/bin")
-      File.write!("test/bin/#{filename}", body)
-    end
-
-    if not File.exists?("test/bin/etcd") or not File.exists?("test/bin/etcdctl") do
-      {_, 0} =
-        System.cmd("tar", [
-          "xzvf",
-          "test/bin/#{filename}",
-          "-C",
-          "test/bin",
-          "--strip-components=1"
-        ])
-    end
-  end
-
-  def download_darwin_etcd() do
-    filename = "etcd-#{@etcd_version}-darwin-#{arch()}.zip"
-
-    if not File.exists?("test/bin/#{filename}") do
-      url = "#{@github_url}/#{@etcd_version}/#{filename}"
-
-      {:ok, resp} = :httpc.request(:get, {String.to_charlist(url), []}, [], body_format: :binary)
-
-      {{_, 200, _}, _headers, body} = resp
-
-      File.mkdir_p!("test/bin")
-      File.write!("test/bin/#{filename}", body)
-    end
-
-    if not File.exists?("test/bin/etcd") or not File.exists?("test/bin/etcdctl") do
-      {_, 0} =
-        System.cmd("unzip", [
-          "test/bin/#{filename}",
-          "-d",
-          "test/bin"
-        ])
-    end
-  end
-
-  def arch do
-    {output, _exit} = System.cmd("uname", ["-m"])
-
-    output
-    |> String.trim()
-    |> String.downcase()
-    |> case do
-      "x86_64" -> "amd64"
-      "aarch64" -> "arm64"
-      other -> other
-    end
-  end
-
-  def os do
-    {output, 0} = System.cmd("uname", ["-s"])
-
-    output
-    |> String.trim()
-    |> String.downcase()
+  @doc """
+  Runs etcdctl command.
+  """
+  @spec etcdctl(args :: [String.t()]) :: {Collectable.t(), exit_status :: non_neg_integer()}
+  def etcdctl(args \\ []) do
+    System.cmd(@etcdctl_path, args)
   end
 end
