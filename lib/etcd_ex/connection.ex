@@ -130,12 +130,8 @@ defmodule EtcdEx.Connection do
 
   def handle_call({:unary, fun, args}, from, state)
       when fun in [:get, :put, :delete, :grant, :revoke, :keep_alive, :ttl, :leases] do
-    if state.env == nil do
-      {:reply, {:error, :not_connected}, state}
-    else
-      result = apply(EtcdEx.Mint, fun, [state.env] ++ args)
-      handle_unary_request(result, from, state)
-    end
+    result = apply(EtcdEx.Mint, fun, [state.env] ++ args)
+    handle_unary_request(result, from, state)
   end
 
   def handle_call({:watch, watching_process, key, opts}, _from, state) do
