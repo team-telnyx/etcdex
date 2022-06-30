@@ -18,7 +18,7 @@ defmodule EtcdEx.Mint do
   @doc """
   Unwraps a `EtcdEx.Mint` connection.
   """
-  @spec wrap(t) :: Mint.HTTP.t
+  @spec unwrap(t) :: Mint.HTTP.t
   def unwrap(%__MODULE__{conn: conn}), do: conn
 
   @doc """
