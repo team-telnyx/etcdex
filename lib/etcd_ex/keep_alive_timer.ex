@@ -27,6 +27,14 @@ defmodule EtcdEx.KeepAliveTimer do
     %{keep_alive_timer | interval_timer: start_interval_timer(keep_alive_timer.interval)}
   end
 
+  def clear(%__MODULE__{interval_timer: interval_timer, timeout_timers: timeout_timers}) do
+    cancel_timer(interval_timer)
+
+    :ok = Enum.each(timeout_timers, fn {_request_ref, timer} -> cancel_timer(timer) end)
+
+    %__MODULE__{}
+  end
+
   def start_timeout_timer(%__MODULE__{} = keep_alive_timer, request_ref) do
     put_in(
       keep_alive_timer.timeout_timers[request_ref],

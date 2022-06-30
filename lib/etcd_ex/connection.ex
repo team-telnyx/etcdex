@@ -116,7 +116,11 @@ defmodule EtcdEx.Connection do
       |> Mint.HTTP.close()
     end
 
-    {:connect, :reconnect, %{state | env: nil, pending_requests: %{}}}
+    keep_alive_timer = KeepAliveTimer.clear(state.keep_alive_timer)
+
+    state = %{state | env: nil, keep_alive_timer: keep_alive_timer, pending_requests: %{}}
+
+    {:connect, :reconnect, state}
   end
 
   @impl Connection
