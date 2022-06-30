@@ -4,7 +4,7 @@ defmodule EtcdEx.MixProject do
   def project do
     [
       app: :etcdex,
-      version: "0.1.0",
+      version: "1.0.0",
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -25,13 +25,12 @@ defmodule EtcdEx.MixProject do
   end
 
   def application do
-    case Mix.env() do
-      :test ->
-        [extra_applications: [:logger, :inets]]
+    other_extra_applications =
+      if Mix.env() == :test,
+        do: [:inets],
+        else: []
 
-      _ ->
-        [extra_applications: [:logger]]
-    end
+    [extra_applications: [:logger] ++ other_extra_applications]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
