@@ -258,8 +258,18 @@ defmodule EtcdEx.Connection do
     end
   end
 
-  defp process_response({:headers, _request_ref, _headers}, state),
-    do: state
+  defp process_response({:headers, request_ref, headers}, state) do
+    case Map.fetch!(state.pending_requests, request_ref) do
+      {:unary, from, acc} ->
+        pending_requests =
+          Map.put(state.pending_requests, request_ref, {:unary, from, acc ++ [headers]})
+
+        %{state | pending_requests: pending_requests}
+
+      {:watch, _pid} ->
+        state
+    end
+  end
 
   defp process_response({:data, request_ref, data} = response, state) do
     case Map.get(state.pending_requests, request_ref) do
@@ -309,18 +319,26 @@ defmodule EtcdEx.Connection do
 
   defp process_response({:done, request_ref}, state) do
     case Map.fetch!(state.pending_requests, request_ref) do
-      {:unary, from, [status | data]} ->
-        if status == 200 do
-          data
-          |> List.first()
-          |> case do
-            nil -> :ok
-            data -> {:ok, data}
+      {:unary, from, [status, headers | data]} ->
+        grpc_status = :proplists.get_value("grpc-status", headers)
+        grpc_message = :proplists.get_value("grpc-message", headers)
+
+        result =
+          case {status, grpc_status} do
+            {200, :undefined} ->
+              case List.first(data) do
+                nil -> :ok
+                data -> {:ok, data}
+              end
+
+            {200, _} ->
+              {:error, grpc_status: String.to_integer(grpc_status), grpc_message: grpc_message}
+
+            {status, _} ->
+              {:error, status: status}
           end
-          |> then(&Connection.reply(from, &1))
-        else
-          Connection.reply(from, {:error, {:status, status}})
-        end
+
+        Connection.reply(from, result)
     end
 
     pending_requests = Map.delete(state.pending_requests, request_ref)
