@@ -164,34 +164,7 @@ defmodule EtcdEx.Connection do
 
   @impl Connection
   def handle_info({:DOWN, _ref, :process, watching_process, _info}, state) do
-    Process.demonitor(watching_process)
-
-    state =
-      case Map.get(state.watch_streams, watching_process) do
-        nil ->
-          state
-
-        %{request_ref: request_ref} ->
-          case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
-            {:ok, env} ->
-              %{state | env: env}
-
-            {:error, env, reason} ->
-              Logger.warn("error closing watch stream: #{inspect(reason)}")
-              %{state | env: env}
-          end
-      end
-
-    watch_streams = Map.delete(state.watch_streams, watching_process)
-
-    pending_requests =
-      Map.reject(state.pending_requests, &match?({_, {:watch, ^watching_process}}, &1))
-
-    state = %{
-      state
-      | watch_streams: watch_streams,
-        pending_requests: pending_requests
-    }
+    {_reply, state} = do_cancel_watch(watching_process, state)
 
     {:noreply, state}
   end
@@ -248,7 +221,12 @@ defmodule EtcdEx.Connection do
   end
 
   defp process_response({:status, request_ref, status}, state) do
-    case Map.fetch!(state.pending_requests, request_ref) do
+    case Map.get(state.pending_requests, request_ref) do
+      nil ->
+        # This is the case when caller closes the watch stream, but there are messages
+        # on the queue to be processed. In this case they are just ignored.
+        state
+
       {:unary, from, []} ->
         pending_requests = Map.put(state.pending_requests, request_ref, {:unary, from, [status]})
         %{state | pending_requests: pending_requests}
@@ -259,7 +237,12 @@ defmodule EtcdEx.Connection do
   end
 
   defp process_response({:headers, request_ref, headers}, state) do
-    case Map.fetch!(state.pending_requests, request_ref) do
+    case Map.get(state.pending_requests, request_ref) do
+      nil ->
+        # This is the case when caller closes the watch stream, but there are messages
+        # on the queue to be processed. In this case they are just ignored.
+        state
+
       {:unary, from, acc} ->
         pending_requests =
           Map.put(state.pending_requests, request_ref, {:unary, from, acc ++ [headers]})
@@ -318,7 +301,10 @@ defmodule EtcdEx.Connection do
   end
 
   defp process_response({:done, request_ref}, state) do
-    case Map.fetch!(state.pending_requests, request_ref) do
+    case Map.get(state.pending_requests, request_ref) do
+      nil ->
+        :ok
+
       {:unary, from, [status, headers | data]} ->
         grpc_status = :proplists.get_value("grpc-status", headers)
         grpc_message = :proplists.get_value("grpc-message", headers)
@@ -332,7 +318,9 @@ defmodule EtcdEx.Connection do
               end
 
             {200, _} ->
-              {:error, {:grpc_error, %{grpc_status: String.to_integer(grpc_status), grpc_message: grpc_message}}}
+              {:error,
+               {:grpc_error,
+                %{grpc_status: String.to_integer(grpc_status), grpc_message: grpc_message}}}
 
             {status, _} ->
               {:error, {:http_error, %{status: status}}}
@@ -379,12 +367,14 @@ defmodule EtcdEx.Connection do
       nil ->
         case EtcdEx.Mint.open_watch_stream(state.env) do
           {:ok, env, request_ref} ->
+            monitor_ref = Process.monitor(watching_process)
+
             watch_stream = %{
               watch_stream: EtcdEx.WatchStream.new(),
-              request_ref: request_ref
+              request_ref: request_ref,
+              monitor_ref: monitor_ref
             }
 
-            Process.monitor(watching_process)
             watch_streams = Map.put(state.watch_streams, watching_process, watch_stream)
 
             pending_requests =
@@ -429,10 +419,10 @@ defmodule EtcdEx.Connection do
       nil ->
         {{:error, :not_found}, state}
 
-      %{request_ref: request_ref} ->
+      %{request_ref: request_ref, monitor_ref: monitor_ref} ->
         case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
           {:ok, env} ->
-            Process.demonitor(watching_process)
+            Process.demonitor(monitor_ref)
 
             watch_streams = Map.delete(state.watch_streams, watching_process)
             pending_requests = Map.delete(state.pending_requests, request_ref)

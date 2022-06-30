@@ -259,4 +259,60 @@ defmodule EtcdExTest do
       assert {:ok, %{kvs: []}} = EtcdEx.get(conn, "kez")
     end
   end
+
+  describe "watch" do
+    test "put", %{conn: conn, etcdctl_path: etcdctl_path} do
+      assert :ok = EtcdEx.watch(conn, self(), "foo")
+
+      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+
+      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+
+      assert_receive {:etcd_watch_notify, _ref,
+                      %{events: [%{type: :PUT, kv: %{key: "foo", value: "bar"}}]}}
+    end
+
+    test "delete", %{conn: conn, etcdctl_path: etcdctl_path} do
+      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+      
+      assert :ok = EtcdEx.watch(conn, self(), "foo")
+
+      {_, 0} = System.cmd(etcdctl_path, ["del", "foo"])
+
+      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+
+      assert_receive {:etcd_watch_notify, _ref,
+                      %{events: [%{type: :DELETE, kv: %{key: "foo", value: ""}}]}}
+    end
+
+    test "compressed key", %{conn: conn, etcdctl_path: etcdctl_path} do
+      for {key, value} <- [
+            {"foo", "0"},
+            {"foo", "1"},
+            {"foo", "2"}
+          ] do
+        {_, 0} = System.cmd(etcdctl_path, ["put", key, value])
+      end
+
+      assert {"compacted revision" <> _, 0} = System.cmd(etcdctl_path, ["compact", "2"])
+
+      assert :ok = EtcdEx.watch(conn, self(), "foo", start_revision: 1)
+
+      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+
+      assert_receive {:etcd_watch_canceled, _ref, {:compacted, _}}
+    end
+
+    test "cancel", %{conn: conn, etcdctl_path: etcdctl_path} do
+      assert :ok = EtcdEx.watch(conn, self(), "foo")
+      assert :ok = EtcdEx.cancel_watch(conn, self())
+
+      {_, 0} = System.cmd(etcdctl_path, ["put", "foo", "bar"])
+
+      refute_receive {:etcd_watch_created, _ref}
+
+      refute_receive {:etcd_watch_notify, _ref, _response}
+    end
+
+  end
 end
