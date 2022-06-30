@@ -12,7 +12,7 @@ The package can be installed by adding `etcdex` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:etcdex, "~> 0.1"}
+    {:etcdex, "~> 1.0"}
   ]
 end
 ```
