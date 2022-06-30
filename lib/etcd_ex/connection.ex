@@ -332,10 +332,10 @@ defmodule EtcdEx.Connection do
               end
 
             {200, _} ->
-              {:error, grpc_status: String.to_integer(grpc_status), grpc_message: grpc_message}
+              {:error, {:grpc_error, %{grpc_status: String.to_integer(grpc_status), grpc_message: grpc_message}}}
 
             {status, _} ->
-              {:error, status: status}
+              {:error, {:http_error, %{status: status}}}
           end
 
         Connection.reply(from, result)
