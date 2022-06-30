@@ -364,7 +364,7 @@ defmodule EtcdEx do
     * `:TTL` - the time-to-live, in seconds, that the lease has remaining.
     * `:grantedTTL` - the time, in seconds, of the time-to-live requested when
       the lease was granted.
-    * `:keys` - if `with_keys` is `true`, it will contain a list of keys that
+    * `:keys` - if `keys` is `true`, it will contain a list of keys that
       have been assigned to the lease.
   """
   @spec ttl(conn, Types.lease_id(), [Types.ttl_opt()], timeout) ::
