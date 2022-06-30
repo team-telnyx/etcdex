@@ -3,13 +3,14 @@ defmodule EtcdEx do
   This module provides interface to Etcd.
   """
 
-  @type start_opts :: [start_opt]
+  alias EtcdEx.Types
+
   @type start_opt ::
-          {:options, options}
+          {:options, [option]}
           | {:transport, transport}
           | {:transport_opts, transport_opts}
 
-  @type options ::
+  @type option ::
           {:mode, :connect_all | :random}
           | {:name, String.t()}
           | {:password, String.t()}
@@ -26,75 +27,16 @@ defmodule EtcdEx do
   @type extended_options :: {atom, any}
 
   @type conn :: EtcdEx.Connection.t()
-  @type key :: String.t()
-  @type value :: String.t()
-  @type range_end :: String.t()
-  @type lease_id :: integer
-  @type limit :: non_neg_integer
-  @type revision :: pos_integer
-  @type sort :: {sort_target, sort_order}
-  @type sort_target :: :KEY | :VERSION | :VALUE | :CREATE | :MOD
-  @type sort_order :: :NONE | :ASCEND | :DESCEND
-  @type watch :: pid
-  @type watch_id :: pos_integer
-  @type ttl :: pos_integer
 
-  @type filters :: [filter]
-  @type filter :: :NOPUT | :NODELETE
+  @type watch_ref :: reference
+  @type watching_process :: pid
 
-  @type get_opts :: [get_opt]
-  @type get_opt ::
-          {:range_end, range_end}
-          | {:prefix, boolean}
-          | {:from_key, boolean}
-          | {:limit, limit}
-          | {:revision, revision}
-          | {:sort, sort}
-          | {:serializable, boolean}
-          | {:keys_only, boolean}
-          | {:count_only, boolean}
-          | {:min_mod_revision, revision}
-          | {:max_mod_revision, revision}
-          | {:min_create_revision, revision}
-          | {:max_create_revision, revision}
-          | {:timeout, timeout}
-
-  @type put_opts :: [put_opt]
-  @type put_opt ::
-          {:lease, lease_id}
-          | {:prev_kv, boolean}
-          | {:ignore_value, boolean}
-          | {:ignore_lease, boolean}
-          | {:timeout, timeout}
-
-  @type delete_opts :: [delete_opt]
-  @type delete_opt ::
-          {:range_end, range_end}
-          | {:prefix, boolean}
-          | {:from_key, boolean}
-          | {:prev_kv, boolean}
-          | {:timeout, timeout}
-
-  @type watch_opts :: [watch_opt]
-  @type watch_opt ::
-          {:range_end, range_end}
-          | {:prefix, boolean}
-          | {:from_key, boolean}
-          | {:start_revision, revision}
-          | {:filters, filters}
-          | {:prev_kv, boolean}
-          | {:progress_notify, boolean}
-
-  @type grant_opts :: [grant_opt]
-  @type grant_opt :: {:timeout, timeout}
-
-  @type revoke_opts :: [revoke_opt]
-  @type revoke_opt :: {:timeout, timeout}
+  @default_timeout :timer.seconds(5)
 
   @doc """
   Returns a specification to start `EtcdEx` under a supervisor.
   """
-  @spec child_spec(start_opts) :: Supervisor.child_spec()
+  @spec child_spec([start_opt]) :: Supervisor.child_spec()
   defdelegate child_spec(init_opts), to: EtcdEx.Connection
 
   @doc """
@@ -138,7 +80,7 @@ defmodule EtcdEx do
     * `:transport` - one of `:tcp`, `:tls` or `:ssl`. Defaults to `:tcp`.
     * `:transport_opts` - transport-specific settings.
   """
-  @spec start_link(start_opts) :: GenServer.on_start()
+  @spec start_link([start_opt]) :: GenServer.on_start()
   defdelegate start_link(start_opts), to: EtcdEx.Connection
 
   @doc """
@@ -250,116 +192,11 @@ defmodule EtcdEx do
     * `:lease` - the ID of the lease attached to the key. If lease is 0, then no
       lease is attached to the key.
   """
-  def get(conn, key, opts \\ []) when is_atom(conn) and is_binary(key) and is_list(opts) do
-    request =
-      conn
-      |> :eetcd_kv.new()
-      |> :eetcd_kv.with_key(key)
-      |> build_get_opts(opts)
-
-    EtcdEx.Connection.get(conn, request)
-  end
-
-  defp build_get_opts(req, []), do: req
-
-  defp build_get_opts(req, [{:range_end, range_end} | opts]) do
-    req
-    |> :eetcd_kv.with_range_end(range_end)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:prefix, true} | opts]) do
-    req
-    |> :eetcd_kv.with_prefix()
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:prefix, _} | opts]), do: build_get_opts(req, opts)
-
-  defp build_get_opts(req, [{:from_key, true} | opts]) do
-    req
-    |> :eetcd_kv.with_from_key()
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:from_key, _} | opts]), do: build_get_opts(req, opts)
-
-  defp build_get_opts(req, [{:limit, limit} | opts]) do
-    req
-    |> :eetcd_kv.with_limit(limit)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:lease, lease} | opts]) do
-    req
-    |> :eetcd_kv.with_lease(lease)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:revision, revision} | opts]) do
-    req
-    |> :eetcd_kv.with_rev(revision)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:sort, {sort_target, sort_order}} | opts]) do
-    req
-    |> :eetcd_kv.with_sort(sort_target, sort_order)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:serializable, true} | opts]) do
-    req
-    |> :eetcd_kv.with_serializable()
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:serializable, _} | opts]), do: build_get_opts(req, opts)
-
-  defp build_get_opts(req, [{:keys_only, true} | opts]) do
-    req
-    |> :eetcd_kv.with_keys_only()
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:keys_only, _} | opts]), do: build_get_opts(req, opts)
-
-  defp build_get_opts(req, [{:count_only, true} | opts]) do
-    req
-    |> :eetcd_kv.with_count_only()
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:count_only, _} | opts]), do: build_get_opts(req, opts)
-
-  defp build_get_opts(req, [{:min_mod_revision, revision} | opts]) do
-    req
-    |> :eetcd_kv.with_min_mod_rev(revision)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:max_mod_revision, revision} | opts]) do
-    req
-    |> :eetcd_kv.with_max_mod_rev(revision)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:min_create_revision, revision} | opts]) do
-    req
-    |> :eetcd_kv.with_min_create_rev(revision)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:max_create_revision, revision} | opts]) do
-    req
-    |> :eetcd_kv.with_max_create_rev(revision)
-    |> build_get_opts(opts)
-  end
-
-  defp build_get_opts(req, [{:timeout, timeout} | opts]) do
-    req
-    |> :eetcd_kv.with_timeout(timeout)
-    |> build_get_opts(opts)
+  @spec get(conn, Types.key(), [Types.get_opt()], timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def get(conn, key, opts \\ [], timeout \\ @default_timeout)
+      when is_binary(key) and is_list(opts) do
+    EtcdEx.Connection.unary(conn, :get, [key, opts], timeout)
   end
 
   @doc """
@@ -381,55 +218,11 @@ defmodule EtcdEx do
       Returns an error if the key does not exist.
     * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
   """
-  @spec put(conn, key, value, put_opts) :: {:ok, any} | {:error, any}
-  def put(conn, key, value, opts \\ [])
-      when is_atom(conn) and is_binary(key) and is_binary(value) and is_list(opts) do
-    request =
-      conn
-      |> :eetcd_kv.new()
-      |> :eetcd_kv.with_key(key)
-      |> :eetcd_kv.with_value(value)
-      |> build_put_opts(opts)
-
-    EtcdEx.Connection.put(conn, request)
-  end
-
-  defp build_put_opts(req, []), do: req
-
-  defp build_put_opts(req, [{:lease, lease} | opts]) do
-    req
-    |> :eetcd_kv.with_lease(lease)
-    |> build_put_opts(opts)
-  end
-
-  defp build_put_opts(req, [{:prev_kv, true} | opts]) do
-    req
-    |> :eetcd_kv.with_prev_kv()
-    |> build_put_opts(opts)
-  end
-
-  defp build_put_opts(req, [{:prev_kv, _} | opts]), do: build_put_opts(req, opts)
-
-  defp build_put_opts(req, [{:ignore_value, true} | opts]) do
-    req
-    |> :eetcd_kv.with_ignore_value()
-    |> build_put_opts(opts)
-  end
-
-  defp build_put_opts(req, [{:ignore_value, _} | opts]), do: build_put_opts(req, opts)
-
-  defp build_put_opts(req, [{:ignore_lease, true} | opts]) do
-    req
-    |> :eetcd_kv.with_ignore_lease()
-    |> build_put_opts(opts)
-  end
-
-  defp build_put_opts(req, [{:ignore_lease, _} | opts]), do: build_put_opts(req, opts)
-
-  defp build_put_opts(req, [{:timeout, timeout} | opts]) do
-    req
-    |> :eetcd_kv.with_timeout(timeout)
-    |> build_get_opts(opts)
+  @spec put(conn, Types.key(), Types.value(), [Types.put_opt()], timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def put(conn, key, value, opts \\ [], timeout \\ @default_timeout)
+      when is_binary(key) and is_binary(value) and is_list(opts) do
+    EtcdEx.Connection.unary(conn, :put, [key, value, opts], timeout)
   end
 
   @doc """
@@ -446,66 +239,180 @@ defmodule EtcdEx do
     * `:prev_kv` - when set, return the contents of the deleted key-value pairs.
     * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
   """
-  @spec delete(conn, key, delete_opts) :: {:ok, any} | {:error, any}
-  def delete(conn, key, opts \\ []) do
-    request =
-      conn
-      |> :eetcd_kv.new()
-      |> :eetcd_kv.with_key(key)
-      |> build_delete_opts(opts)
-
-    EtcdEx.Connection.delete(conn, request)
-  end
-
-  defp build_delete_opts(req, []), do: req
-
-  defp build_delete_opts(req, [{:range_end, range_end} | opts]) do
-    req
-    |> :eetcd_kv.with_range_end(range_end)
-    |> build_delete_opts(opts)
-  end
-
-  defp build_delete_opts(req, [{:prefix, true} | opts]) do
-    req
-    |> :eetcd_kv.with_prefix()
-    |> build_delete_opts(opts)
-  end
-
-  defp build_delete_opts(req, [{:prefix, _} | opts]), do: build_delete_opts(req, opts)
-
-  defp build_delete_opts(req, [{:from_key, true} | opts]) do
-    req
-    |> :eetcd_kv.with_from_key()
-    |> build_delete_opts(opts)
-  end
-
-  defp build_delete_opts(req, [{:from_key, _} | opts]), do: build_delete_opts(req, opts)
-
-  defp build_delete_opts(req, [{:prev_kv, true} | opts]) do
-    req
-    |> :eetcd_kv.with_prev_kv()
-    |> build_delete_opts(opts)
-  end
-
-  defp build_delete_opts(req, [{:prev_kv, _} | opts]), do: build_delete_opts(req, opts)
-
-  defp build_delete_opts(req, [{:timeout, timeout} | opts]) do
-    req
-    |> :eetcd_kv.with_timeout(timeout)
-    |> build_get_opts(opts)
+  @spec delete(conn, Types.key(), [Types.delete_opt()], timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def delete(conn, key, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :delete, [key, opts], timeout)
   end
 
   @doc """
-  Watches changes made to Etcd keys.
+  Obtain a lease.
+
+  The argument `ttl` is the advisory time-to-live, in seconds.
+
+  The only option available is `:timeout` which indicates how long to wait for
+  a response from the Etcd cluster.
+
+  Leases are a mechanism for detecting client liveness. The cluster grants
+  leases with a time-to-live. A lease expires if the etcd cluster does not
+  receive a keepAlive within a given TTL period.
+
+  To tie leases into the key-value store, each key may be attached to at most
+  one lease. When a lease expires or is revoked, all keys attached to that
+  lease will be deleted. Each expired key generates a delete event in the event
+  history.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 300,
+        error: "",
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47427980
+        }
+      }
+
+    * `:ID` - the lease ID for the granted lease.
+    * `:TTL` - is the server selected time-to-live, in seconds, for the lease.
+  """
+  @spec grant(conn, Types.ttl(), timeout) :: {:ok, any} | {:error, Mint.Types.error()}
+  def grant(conn, ttl, timeout \\ @default_timeout) when is_integer(ttl) and ttl >= 0 do
+    EtcdEx.Connection.unary(conn, :grant, [ttl], timeout)
+  end
+
+  @doc """
+  Revokes a previously granted lease.
+
+  The response is of the form:
+
+      %{
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47452709
+        }
+      }
+  """
+  @spec revoke(conn, Types.lease_id(), timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def revoke(conn, lease_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :revoke, [lease_id], timeout)
+  end
+
+  @doc """
+  Refreshes an existing lease.
+
+  The `lease_id` should have been obtained from a previous call to `grant/3`.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 300,
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47428392
+        }
+      }
+
+    * `:ID` - the lease that was refreshed with a new TTL.
+    * `:TTL` - the new time-to-live, in seconds, that the lease has remaining.
+  """
+  @spec keep_alive(conn, Types.lease_id(), timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def keep_alive(conn, lease_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :keep_alive, [lease_id], timeout)
+  end
+
+  @doc """
+  Checks the advisory time-to-live from a lease.
+
+  The `lease_id` should have been obtained from a previous call to `grant/3`.
+
+  If `with_keys` argument is `true`, the response will have the `:keys` field
+  containing a list of all keys associated with the `lease_id`.
+
+  ## Response
+
+  The response looks like:
+
+      %{
+        ID: 4658271320501810998,
+        TTL: 231,
+        grantedTTL: 300,
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47429656
+        },
+        keys: []
+      }
+
+    * `:ID` - the queried lease ID.
+    * `:TTL` - the time-to-live, in seconds, that the lease has remaining.
+    * `:grantedTTL` - the time, in seconds, of the time-to-live requested when
+      the lease was granted.
+    * `:keys` - if `keys` is `true`, it will contain a list of keys that
+      have been assigned to the lease.
+  """
+  @spec ttl(conn, Types.lease_id(), [Types.ttl_opt()], timeout) ::
+          {:ok, any} | {:error, Mint.Types.error()}
+  def ttl(conn, lease_id, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :ttl, [lease_id, opts], timeout)
+  end
+
+  @doc """
+  List all leases from the Etcd cluster.
+
+  The response is of the form:
+
+      %{
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 6198688855164797093,
+          raft_term: 13,
+          revision: 47430034
+        },
+        leases: [
+          %{ID: 6322351403492000182},
+          %{ID: 4658271320501761384},
+          %{ID: 4658271320501772555}
+        ]
+      }
+
+    * `:leases` - list of leases.
+  """
+  @spec leases(conn, timeout) :: {:ok, any} | {:error, Mint.Types.error()}
+  def leases(conn, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :leases, [], timeout)
+  end
+
+  @doc """
+  Opens a watch stream and watches for changes on keys.
 
   An etcd3 watch waits for changes to keys by continuously watching from a given
   revision, either current or historical, and streams key updates back to the client.
 
-  On success, the return value has the form `{:ok, watch, watch_id}`. The `watch` is
-  a `pid` to a background process used to monitor the key-value changes. The `watch_id`
-  represents a stream of changes over the created watch.
+  On success, the return value has the form `{:ok, watch_stream}`. The `watch_stream` is
+  a reference to the created stream, that can be used to cancel/modify the stream at any
+  moment.
 
-  Watch processes can be reused to monitor multiple key/ranges, see `reuse_watch/3`.
+  Watch streams can be modified by passing different `watch_params` to a previously created
+  `watch_stream`. In order to cancel the watch, use `cancel_watch`.
+
+  Watch streams are recreated on reconnections.
 
   ## Watch streams
 
@@ -527,7 +434,7 @@ defmodule EtcdEx do
 
   ## Options
 
-  `watch` accepts the following options:
+  `watch_params` accepts the following options:
 
     * `:range_end` - the key range to watch.
     * `:prefix` - if true, sets up `:range_end` as `a+1`.
@@ -563,7 +470,9 @@ defmodule EtcdEx do
           ]
         }}
 
-    * `:watch_id` - the ID of the watch that corresponds to the response.
+    * `:watch_id` - the ID of the watch that corresponds to the response. As watch
+      streams are recreated during reconnections, the watch ID is exposed only for
+      informative purposes.
     * `:created` - set to `true` if the response is for a create watch request. The
       client should store the ID and expect to receive events for the watch on the
       stream. All events sent to the created watcher will have the same `watch_id`.
@@ -603,271 +512,27 @@ defmodule EtcdEx do
       the event. To save bandwidth, it is only filled out if the watch has explicitly
       enabled it.
   """
-  @spec watch(conn, key, watch_opts) :: {:ok, watch, watch_id} | {:error, any}
-  def watch(conn, key, opts \\ []) do
-    request =
-      :eetcd_watch.new()
-      |> :eetcd_watch.with_key(key)
-      |> build_watch_opts(opts)
-
-    {:ok, watch} = EtcdEx.Watch.start_link({self(), conn})
-
-    case EtcdEx.Watch.watch(watch, request) do
-      {:ok, watch_id} ->
-        {:ok, watch, watch_id}
-
-      error ->
-        EtcdEx.Watch.cancel(watch)
-
-        error
-    end
-  end
-
-  defp build_watch_opts(req, []), do: req
-
-  defp build_watch_opts(req, [{:range_end, range_end} | opts]) do
-    req
-    |> :eetcd_watch.with_range_end(range_end)
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:prefix, true} | opts]) do
-    req
-    |> :eetcd_watch.with_prefix()
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:prefix, _} | opts]), do: build_watch_opts(req, opts)
-
-  defp build_watch_opts(req, [{:from_key, true} | opts]) do
-    req
-    |> :eetcd_watch.with_from_key()
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:from_key, _} | opts]), do: build_watch_opts(req, opts)
-
-  defp build_watch_opts(req, [{:start_revision, revision} | opts]) do
-    req
-    |> :eetcd_watch.with_start_revision(revision)
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:filters, filters} | opts]) do
-    req =
-      Enum.reduce(filters, req, fn
-        :NOPUT, req -> :eetcd_watch.with_filter_put(req)
-        :NODELETE, req -> :eetcd_watch.with_filter_delete(req)
-      end)
-
-    build_watch_opts(req, opts)
-  end
-
-  defp build_watch_opts(req, [{:prev_kv, true} | opts]) do
-    req
-    |> :eetcd_watch.with_prev_kv()
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:prev_kv, _} | opts]), do: build_watch_opts(req, opts)
-
-  defp build_watch_opts(req, [{:progress_notify, true} | opts]) do
-    req
-    |> :eetcd_watch.with_progress_notify()
-    |> build_watch_opts(opts)
-  end
-
-  defp build_watch_opts(req, [{:progress_notify, _} | opts]), do: build_watch_opts(req, opts)
-
-  @doc """
-  Reuses an existing watch to observe further keys/ranges.
-
-  All options follow the `watch/3` ones.
-  """
-  @spec reuse_watch(watch, key, watch_opts) :: {:ok, watch_id} | {:error, any}
-  def reuse_watch(watch, key, opts \\ []) when is_pid(watch) do
-    request =
-      :eetcd_watch.new()
-      |> :eetcd_watch.with_key(key)
-      |> build_watch_opts(opts)
-
-    EtcdEx.Watch.watch(watch, request)
+  @spec watch(conn, watching_process, Types.key(), [Types.watch_opt()], timeout) ::
+          :ok | {:error, Mint.Types.error()}
+  def watch(conn, watching_process, key, opts \\ [], timeout \\ @default_timeout) do
+    EtcdEx.Connection.watch(conn, watching_process, key, opts, timeout)
   end
 
   @doc """
   Cancels a watch.
   """
-  @spec cancel_watch(watch) :: :ok
-  def cancel_watch(watch) when is_pid(watch) do
-    EtcdEx.Watch.cancel(watch)
+  @spec cancel_watch(conn, watching_process, timeout) ::
+          :ok | {:error, Mint.Types.error()}
+  def cancel_watch(conn, watching_process, timeout \\ @default_timeout) do
+    EtcdEx.Connection.cancel_watch(conn, watching_process, timeout)
   end
 
   @doc """
-  Obtain a lease.
-
-  The argument `ttl` is the advisory time-to-live, in seconds.
-
-  The only option available is `:timeout` which indicates how long to wait for
-  a response from the Etcd cluster.
-
-  Leases are a mechanism for detecting client liveness. The cluster grants
-  leases with a time-to-live. A lease expires if the etcd cluster does not
-  receive a keepAlive within a given TTL period.
-
-  To tie leases into the key-value store, each key may be attached to at most
-  one lease. When a lease expires or is revoked, all keys attached to that
-  lease will be deleted. Each expired key generates a delete event in the event
-  history.
-
-  ## Response
-
-  The response looks like:
-
-      %{
-        ID: 4658271320501810998,
-        TTL: 300,
-        error: "",
-        header: %{
-          cluster_id: 16182920199522267672,
-          member_id: 6198688855164797093,
-          raft_term: 13,
-          revision: 47427980
-        }
-      }
-
-    * `:ID` - the lease ID for the granted lease.
-    * `:TTL` - is the server selected time-to-live, in seconds, for the lease.
+  List watches started by the watching process.
   """
-  @spec grant(conn, ttl, grant_opts) :: {:ok, any} | {:error, any}
-  def grant(conn, ttl, opts \\ []) when is_atom(conn) and is_integer(ttl) and ttl >= 0 do
-    request =
-      conn
-      |> :eetcd_lease.new()
-      |> build_grant_opts(opts)
-
-    EtcdEx.Connection.grant(conn, ttl, request)
-  end
-
-  defp build_grant_opts(req, []), do: req
-
-  defp build_grant_opts(req, [{:timeout, timeout} | opts]) do
-    req
-    |> :eetcd_lease.with_timeout(timeout)
-    |> build_grant_opts(opts)
-  end
-
-  @doc """
-  Revokes a previously granted lease.
-
-  The response is of the form:
-
-      %{
-        header: %{
-          cluster_id: 16182920199522267672,
-          member_id: 6198688855164797093,
-          raft_term: 13,
-          revision: 47452709
-        }
-      }
-  """
-  @spec revoke(conn, lease_id, revoke_opts) :: {:ok, any} | {:error, any}
-  def revoke(conn, lease_id, opts \\ []) do
-    request =
-      conn
-      |> :eetcd_lease.new()
-      |> build_grant_opts(opts)
-
-    EtcdEx.Connection.revoke(conn, lease_id, request)
-  end
-
-  @doc """
-  Refreshes an existing lease.
-
-  The `lease_id` should have been obtained from a previous call to `grant/3`.
-
-  ## Response
-
-  The response looks like:
-
-      %{
-        ID: 4658271320501810998,
-        TTL: 300,
-        header: %{
-          cluster_id: 16182920199522267672,
-          member_id: 6198688855164797093,
-          raft_term: 13,
-          revision: 47428392
-        }
-      }
-
-    * `:ID` - the lease that was refreshed with a new TTL.
-    * `:TTL` - the new time-to-live, in seconds, that the lease has remaining.
-  """
-  @spec keep_alive_once(conn, lease_id) :: {:ok, any} | {:error, any}
-  def keep_alive_once(conn, lease_id) do
-    EtcdEx.Connection.keep_alive_once(conn, lease_id)
-  end
-
-  @doc """
-  Checks the advisory time-to-live from a lease.
-
-  The `lease_id` should have been obtained from a previous call to `grant/3`.
-
-  If `with_keys` argument is `true`, the response will have the `:keys` field
-  containing a list of all keys associated with the `lease_id`.
-
-  ## Response
-
-  The response looks like:
-
-      %{
-        ID: 4658271320501810998,
-        TTL: 231,
-        grantedTTL: 300,
-        header: %{
-          cluster_id: 16182920199522267672,
-          member_id: 6198688855164797093,
-          raft_term: 13,
-          revision: 47429656
-        },
-        keys: []
-      }
-
-    * `:ID` - the queried lease ID.
-    * `:TTL` - the time-to-live, in seconds, that the lease has remaining.
-    * `:grantedTTL` - the time, in seconds, of the time-to-live requested when
-      the lease was granted.
-    * `:keys` - if `with_keys` is `true`, it will contain a list of keys that
-      have been assigned to the lease.
-  """
-  @spec ttl(conn, lease_id, with_keys :: boolean) :: {:ok, any} | {:error, any}
-  def ttl(conn, lease_id, with_keys \\ false) do
-    EtcdEx.Connection.ttl(conn, lease_id, with_keys)
-  end
-
-  @doc """
-  List all leases from the Etcd cluster.
-
-  The response is of the form:
-
-      %{
-        header: %{
-          cluster_id: 16182920199522267672,
-          member_id: 6198688855164797093,
-          raft_term: 13,
-          revision: 47430034
-        },
-        leases: [
-          %{ID: 6322351403492000182},
-          %{ID: 4658271320501761384},
-          %{ID: 4658271320501772555}
-        ]
-      }
-
-    * `:leases` - list of leases.
-  """
-  @spec leases(conn) :: {:ok, any} | {:error, any}
-  def leases(conn) do
-    EtcdEx.Connection.leases(conn)
+  @spec list_watches(conn, watching_process, timeout) ::
+          [{watch_ref, Types.key(), [Types.watch_opt()]}]
+  def list_watches(conn, watching_process, timeout \\ @default_timeout) do
+    EtcdEx.Connection.list_watches(conn, watching_process, timeout)
   end
 end
