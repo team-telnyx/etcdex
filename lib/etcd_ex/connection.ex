@@ -1,7 +1,5 @@
 defmodule EtcdEx.Connection do
-  @moduledoc """
-  Represents a connection to Etcd.
-  """
+  @moduledoc false
 
   use Connection
 

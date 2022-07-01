@@ -1,6 +1,5 @@
 defmodule EtcdEx.WatchStream do
-  @moduledoc """
-  """
+  @moduledoc false
 
   alias EtcdEx.Types
 
