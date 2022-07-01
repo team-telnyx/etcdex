@@ -339,5 +339,21 @@ defmodule EtcdExTest do
 
       assert [] = EtcdEx.list_watches(conn, pid)
     end
+
+    test "multiple keys", %{conn: conn} do
+      :ok = EtcdEx.watch(conn, self(), "key1")
+      :ok = EtcdEx.watch(conn, self(), "key2")
+      :ok = EtcdEx.watch(conn, self(), "key3")
+
+      {_, 0} = etcdctl(["put", "key1", "1"])
+      {_, 0} = etcdctl(["put", "key2", "2"])
+      {_, 0} = etcdctl(["put", "key3", "3"])
+
+      assert [_, _, _] = EtcdEx.list_watches(conn, self())
+
+      assert_receive {:etcd_watch_created, _ref}
+      assert_receive {:etcd_watch_created, _ref}
+      assert_receive {:etcd_watch_created, _ref}
+    end
   end
 end

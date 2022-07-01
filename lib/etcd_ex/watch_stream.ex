@@ -115,7 +115,7 @@ defmodule EtcdEx.WatchStream do
           :empty ->
             {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
 
-          next_watch_ref ->
+          {:value, next_watch_ref} ->
             %{key: key, opts: opts} = Map.fetch!(watches, next_watch_ref)
 
             case EtcdEx.Mint.watch(env, request_ref, key, opts) do
