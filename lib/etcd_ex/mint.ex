@@ -18,7 +18,7 @@ defmodule EtcdEx.Mint do
   @doc """
   Unwraps a `EtcdEx.Mint` connection.
   """
-  @spec unwrap(t) :: Mint.HTTP.t
+  @spec unwrap(t) :: Mint.HTTP.t()
   def unwrap(%__MODULE__{conn: conn}), do: conn
 
   @doc """
@@ -174,7 +174,7 @@ defmodule EtcdEx.Mint do
       <<0, len::32, encoded::binary-size(len), rest::binary>> ->
         streams = Map.put(env.streams, request_ref, {decoder, rest})
         env = %{env | streams: streams}
-        {responses ++ [{:data, request_ref, decoder.decode(encoded)}], env}
+        {responses ++ [{:data, request_ref, sanitize_response(decoder.decode(encoded))}], env}
 
       new_pending ->
         streams = Map.put(env.streams, request_ref, {decoder, new_pending})
@@ -189,6 +189,20 @@ defmodule EtcdEx.Mint do
   defp reduce_responses(other, {responses, env}) do
     {responses ++ [other], env}
   end
+
+  defp sanitize_response(%_{} = pb_response) do
+    pb_response
+    |> Map.from_struct()
+    |> Enum.reject(&match?({:__unknown_fields__, _}, &1))
+    |> Enum.map(fn
+      {key, %_{} = pb_response} -> {key, sanitize_response(pb_response)}
+      {key, list} when is_list(list) -> {key, Enum.map(list, &sanitize_response/1)}
+      other -> other
+    end)
+    |> Map.new()
+  end
+
+  defp sanitize_response(other), do: other
 
   @doc """
   Put key-value pair into Etcd.

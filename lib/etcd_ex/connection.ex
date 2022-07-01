@@ -355,8 +355,8 @@ defmodule EtcdEx.Connection do
 
   defp do_watch(watching_process, key, opts, state) do
     with {:ok, state} <- do_open_watch_stream(watching_process, state),
-         {:ok, state} <- do_send_watch(watching_process, key, opts, state) do
-      {:ok, state}
+         {:ok, watch_ref, state} <- do_send_watch(watching_process, key, opts, state) do
+      {{:ok, watch_ref}, state}
     else
       {:error, state, reason} -> {{:error, reason}, state}
     end
@@ -403,11 +403,11 @@ defmodule EtcdEx.Connection do
       Map.fetch!(state.watch_streams, watching_process)
 
     case EtcdEx.WatchStream.watch(state.env, request_ref, watch_stream, key, opts) do
-      {:ok, env, watch_stream, _watch_ref} ->
+      {:ok, env, watch_stream, watch_ref} ->
         watch_streams =
           Map.update!(state.watch_streams, watching_process, &%{&1 | watch_stream: watch_stream})
 
-        {:ok, %{state | env: env, watch_streams: watch_streams}}
+        {:ok, watch_ref, %{state | env: env, watch_streams: watch_streams}}
 
       {:error, env, reason} ->
         {:error, %{state | env: env}, reason}

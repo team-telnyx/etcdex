@@ -35,6 +35,9 @@ defmodule EtcdEx.KeepAliveTimer do
     %__MODULE__{}
   end
 
+  def start_timeout_timer(%__MODULE__{timeout: :infinity} = keep_alive_timer, _request_ref),
+    do: keep_alive_timer
+
   def start_timeout_timer(%__MODULE__{} = keep_alive_timer, request_ref) do
     put_in(
       keep_alive_timer.timeout_timers[request_ref],
@@ -50,9 +53,8 @@ defmodule EtcdEx.KeepAliveTimer do
     keep_alive_timer
   end
 
-  defp start_interval_timer(interval) do
-    Process.send_after(self(), :keep_alive, interval)
-  end
+  defp start_interval_timer(:infinity), do: nil
+  defp start_interval_timer(interval), do: Process.send_after(self(), :keep_alive, interval)
 
   defp cancel_timer(nil), do: :ok
   defp cancel_timer(timer), do: Process.cancel_timer(timer)

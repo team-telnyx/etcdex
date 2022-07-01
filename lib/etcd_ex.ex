@@ -1,6 +1,35 @@
 defmodule EtcdEx do
   @moduledoc """
-  This module provides interface to Etcd.
+  An Elixir client for Etcd.
+
+  This is an interface to a background process that represents a single connection
+  to an Etcd cluster node.
+
+  ## Usage
+
+  To establish a connection with a single Etcd node, use `start_link/1`. The
+  `endpoint` argument passed to it accepts the same options as
+  `Mint.HTTP2.connect/4`.
+
+  Upon start, the background process already connects to Etcd, and refuses start
+  otherwise.
+
+  Use the functions `get/4`, `put/5`, `delete/4` to read and modify Etcd keys.
+
+  Leases are operated through `grant/3`, `revoke/3` and `keep_alive/3`. You can
+  check the validity of  lease using `ttl/4` and list all leases at Etcd with
+  `leases/2`.
+
+  Watch for key changes from a watching process using `watch/5`. They can be
+  canceled at any moment by using `cancel_watch/3`. Upon watching process
+  termination, all watches assigned to a process are automatically canceled,
+  all watch references invalidated and the gRPC watch stream is also closed.
+  Case the connection to Etcd is interrupted, the background process will
+  reconnect all watches, maintaining consistency of revision numbers in the
+  transition.
+
+  It is possible to list all keys being watched by a process with
+  `list_watches/3`.
   """
 
   alias EtcdEx.Types
@@ -54,31 +83,24 @@ defmodule EtcdEx do
 
   ## Options
 
-  The client requires the following keys:
+  All the following keys are optional:
 
-    * `:name` - the name of the client connection
-
-  The following keys are optional:
-
-    * `:endpoints` - list of host:port endpoints. Defaults to `["localhost:2379"]`.
-    * `:options` - general etcd connection options:
-      * `:mode` - when set to `:connect_all`, it creates multiple sub-connections
-        (one sub-connection per each endpoint) and the balancing policy is round-robin.
-        When set to `:random`, only one connection will be opened to a random endpoint,
-        and it will be used to send all client requests; the pinned address is maintained
-        until the client connection is closed; if the client receives an error, it
-        randomly picks another endpoint. Defaults to `:connect_all`.
-      * `:name` and `:password` - used to authenticate in etcd.
-      * `:connect_timeout` - is the connection timeout. Defaults to one second (1000).
-      * `:retry` - is the number of times it will try to reconnect on failure before
-        giving up. Defaults to zero (disabled).
-      * `:retry_timeout` - is the time between retries in milliseconds.
-      * `:auto_sync_interval_ms` - sets the default interval of auto-sync. Default is 0,
-        which means no auto-sync. With auto-sync enabled, the cluster member list will
-        be automatically synchronized via the MemberList API of etcd, and will try to
-        connect any new endpoints if `:mode` is `:connect_all`.
-    * `:transport` - one of `:tcp`, `:tls` or `:ssl`. Defaults to `:tcp`.
-    * `:transport_opts` - transport-specific settings.
+    * `:name` - the process name of the client connection. If you don't use a process
+      name, then you should pass the process `pid` at every `EtcdEx` function instead
+      of the name.
+    * `:endpoint` - a tuple consisting of `{scheme, address, port, connect_opts}`.
+      The `scheme` is either `:http` or `:https`, `address` and `port` the Etcd
+      node address/port, and `connect_opts` follw the same options as supported
+      by `Mint.HTTP2.connect/4`. Defaults to `{:http, "localhost", 2379, []}`.
+    * `:keep_alive_interval` - the period to send keep-alive pings to the
+      Etcd node. Set `:infinity` to disable keep-alive checks. Should be any
+      integer value `>= 10_000`. This option can be used in conjunction with
+      `:keep_alive_timeout` to properly disconnect if the Etcd node is not
+      responding to network traffic. Defaults to 10 seconds.
+    * `:keep_alive_timeout` - the time after sending a keep-alive ping when the
+       ping will be considered unacknowledged. Used in conjunction with
+       `:keep_alive_interval`. Set to `:infinity` to disable keep-alive checks.
+       Should be any integer value `>= 10_000`. Defaults to 10 seconds.
   """
   @spec start_link([start_opt]) :: GenServer.on_start()
   defdelegate start_link(start_opts), to: EtcdEx.Connection
@@ -86,26 +108,28 @@ defmodule EtcdEx do
   @doc """
   Gets one or a range of key-value pairs from Etcd.
 
-  The etcd3 data model indexes all keys over a flat binary key space. This differs
-  from other key-value store systems that use a hierarchical system of organizing
-  keys into directories. Instead of listing keys by directory, keys are listed by
-  key intervals `[a, b)`.
+  The etcd3 data model indexes all keys over a flat binary key space. This
+  differs from other key-value store systems that use a hierarchical system of
+  organizing keys into directories. Instead of listing keys by directory, keys
+  are listed by key intervals `[a, b)`.
 
   These intervals are often referred to as "ranges" in etcd3. Operations over
   ranges are more powerful than operations on directories. Like a hierarchical
-  store, intervals support single key lookups via `[a, a+1)` (e.g., `["a", "a\\x00")`
-  looks up `"a"`) and directory lookups by encoding keys by directory depth. In
-  addition to those operations, intervals can also encode prefixes; for example the
-  interval `["a", "b")` looks up all keys prefixed by the string `"a"`.
+  store, intervals support single key lookups via `[a, a+1)` (e.g.,
+  `["a", "a\\x00")` looks up `"a"`) and directory lookups by encoding keys by
+  directory depth. In addition to those operations, intervals can also encode
+  prefixes; for example the interval `["a", "b")` looks up all keys prefixed by
+  the string `"a"`.
 
   By convention, ranges for a request are denoted by the `key` and `:range_end`
-  option. The `key` argument is the first key of the range and should be non-empty.
-  The `:range_end` is the key following the last key of the range. If `:range_end`
-  is not given or empty, the range is defined to contain only the `key` argument.
-  If `:range_end` is key plus one (e.g., `"aa"+1 == "ab"`, `"a\\xff"+1 == "b"`), then
-  the range represents all keys prefixed with key. If both `key` and `:range_end`
-  are `"\\0"`, then range represents all keys. If `:range_end` is `"\\0"`, the range is
-  all keys greater than or equal to the `key` argument.
+  option. The `key` argument is the first key of the range and should be
+  non-empty.  The `:range_end` is the key following the last key of the range.
+  If `:range_end` is not given or empty, the range is defined to contain only
+  the `key` argument.  If `:range_end` is key plus one (e.g., `"aa"+1 == "ab"`,
+  `"a\\xff"+1 == "b"`), then the range represents all keys prefixed with key.
+  If both `key` and `:range_end` are `"\\x00"`, then range represents all keys.
+  If `:range_end` is `"\\x00"`, the range is all keys greater than or equal to
+  the `key` argument.
 
   ## Options
 
@@ -113,30 +137,34 @@ defmodule EtcdEx do
 
     * `:range_end` - the key range to fetch.
     * `:prefix` - if true, sets up `:range_end` as `a+1`.
-    * `:from_key` - if true, sets up `:range_end` as `key` to represent all keys after
-      `key` argument.
-    * `:limit` - the maximum number of keys returned for the request. When limit is set
-      to 0 (the default), it is treated as no limit.
-    * `:revision` - the point-in-time of the key-value store to use for the range. If
-      `:revision` is less or equal to zero, the range is over the latest key-value store.
-      If the revision is compacted, ErrCompacted is returned as a response.
-    * `:sort` - the key-value field to sort and the ordering for the returned response.
-    * `:serializable` - sets the range request to use serializable member-local reads.
-      By default, Range is linearizable; it reflects the current consensus of the
-      cluster. For better performance and availability, in exchange for possible stale
-      reads, a serializable range request is served locally without needing to reach
-      consensus with other nodes in the cluster.
+    * `:from_key` - if true, sets up `:range_end` as `key` to represent all
+      keys after `key` argument.
+    * `:limit` - the maximum number of keys returned for the request. When
+      limit is set to 0 (the default), it is treated as no limit.
+    * `:revision` - the point-in-time of the key-value store to use for the
+      range. If `:revision` is less or equal to zero, the range is over the
+      latest key-value store.  If the revision is compacted, ErrCompacted is
+      returned as a response.
+    * `:sort` - the key-value field to sort and the ordering for the returned
+      response.
+    * `:serializable` - sets the range request to use serializable member-local
+      reads. By default, Range is linearizable; it reflects the current
+      consensus of the cluster. For better performance and availability, in
+      exchange for possible stale reads, a serializable range request is served
+      locally without needing to reach consensus with other nodes in the
+      cluster.
     * `:keys_only` - return only the keys and not the values.
     * `:count_only` - return only the count of the keys in the range.
-    * `:min_mod_revision` - the lower bound for key mod revisions; filters out lesser
-      mod revisions.
-    * `:max_mod_revision` - the upper bound for key mod revisions; filters out greater
-      mod revisions.
-    * `:min_create_revision` - the lower bound for key create revisions; filters out
-      lesser create revisions.
-    * `:max_create_revision` - the upper bound for key create revisions; filters out
-      greater create revisions.
-    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
+    * `:min_mod_revision` - the lower bound for key mod revisions; filters out
+      lesser mod revisions.
+    * `:max_mod_revision` - the upper bound for key mod revisions; filters out
+      greater mod revisions.
+    * `:min_create_revision` - the lower bound for key create revisions;
+      filters out lesser create revisions.
+    * `:max_create_revision` - the upper bound for key create revisions;
+      filters out greater create revisions.
+    * `:timeout` - indicates max time to wait for a response. Defaults to
+      `:infinity`.
 
   ## Response
 
@@ -158,16 +186,16 @@ defmodule EtcdEx do
 
   Details:
 
-    * `:header` - all responses from etcd have an attached response header which
-      includes cluster metadata for the response:
+    * `:header` - all responses from etcd have an attached response header
+      which includes cluster metadata for the response:
       * `:cluster_id` - the ID of the cluster generating the response.
       * `:member_id` - the ID of the member generating the response.
       * `:revision` - the revision of the key-value store when generating the
         response.
     * `:kvs` - the list of key-value pairs matched by the range request. When
       `:count_only` is `true`, `:kvs` is empty.
-    * `:more` - indicates if there are more keys to return in the requested range
-      if `:limit` is set.
+    * `:more` - indicates if there are more keys to return in the requested
+      range if `:limit` is set.
     * `:count` - the total number of keys satisfying the range request.
 
   ## Key-Value pair
@@ -185,12 +213,12 @@ defmodule EtcdEx do
 
     * `:key` - key bytes in binary. An empty key is not allowed.
     * `:value` - value bytes in binary.
-    * `:version` - version is the version of the key. A deletion resets the version
-      to zero and any modification of the key increases its version.
+    * `:version` - version is the version of the key. A deletion resets the
+      version to zero and any modification of the key increases its version.
     * `:create_revision` - revision of the last creation on the key.
     * `:mod_revision` - revision of the last modification on the key.
-    * `:lease` - the ID of the lease attached to the key. If lease is 0, then no
-      lease is attached to the key.
+    * `:lease` - the ID of the lease attached to the key. If lease is 0, then
+      no lease is attached to the key.
   """
   @spec get(conn, Types.key(), [Types.get_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
@@ -210,13 +238,14 @@ defmodule EtcdEx do
 
     * `:lease` - the lease ID to associate with the key in the key-value store.
       A lease value of 0 indicates no lease.
-    * `:prev_kv` - when set, responds with the key-value pair data before the update
-      from this put call.
-    * `:ignore_value` - when set, update the key without changing its current value.
-      Returns an error if the key does not exist.
-    * `:ignore_lease` - when set, update the key without changing its current lease.
-      Returns an error if the key does not exist.
-    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
+    * `:prev_kv` - when set, responds with the key-value pair data before the
+      update from this put call.
+    * `:ignore_value` - when set, update the key without changing its current
+      value. Returns an error if the key does not exist.
+    * `:ignore_lease` - when set, update the key without changing its current
+      lease. Returns an error if the key does not exist.
+    * `:timeout` - indicates max time to wait for a response. Defaults to
+      `:infinity`.
   """
   @spec put(conn, Types.key(), Types.value(), [Types.put_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
@@ -234,10 +263,12 @@ defmodule EtcdEx do
 
     * `:range_end` - the key range to delete.
     * `:prefix` - if true, sets up `:range_end` as `a+1`.
-    * `:from_key` - if true, sets up `:range_end` as `key` to represent all keys after
-      `key` argument.
-    * `:prev_kv` - when set, return the contents of the deleted key-value pairs.
-    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
+    * `:from_key` - if true, sets up `:range_end` as `key` to represent all
+      keys after `key` argument.
+    * `:prev_kv` - when set, return the contents of the deleted key-value
+      pairs.
+    * `:timeout` - indicates max time to wait for a response. Defaults to
+      `:infinity`.
   """
   @spec delete(conn, Types.key(), [Types.delete_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
@@ -364,8 +395,8 @@ defmodule EtcdEx do
     * `:TTL` - the time-to-live, in seconds, that the lease has remaining.
     * `:grantedTTL` - the time, in seconds, of the time-to-live requested when
       the lease was granted.
-    * `:keys` - if `keys` is `true`, it will contain a list of keys that
-      have been assigned to the lease.
+    * `:keys` - if `keys` is `true`, it will contain a list of keys that have
+      been assigned to the lease.
   """
   @spec ttl(conn, Types.lease_id(), [Types.ttl_opt()], timeout) ::
           {:ok, any} | {:error, Mint.Types.error()}
@@ -402,35 +433,42 @@ defmodule EtcdEx do
   @doc """
   Opens a watch stream and watches for changes on keys.
 
-  An etcd3 watch waits for changes to keys by continuously watching from a given
-  revision, either current or historical, and streams key updates back to the client.
+  An etcd3 watch waits for changes to keys by continuously watching from a
+  given revision, either current or historical, and streams key updates back to
+  the client.
 
-  On success, the return value has the form `{:ok, watch_stream}`. The `watch_stream` is
-  a reference to the created stream, that can be used to cancel/modify the stream at any
-  moment.
+  On success, the return value has the form `{:ok, watch_ref}`. The `watch_ref`
+  is a reference to the created stream, that can be used to correlate watching
+  keys with the notification messages at the watching process inbox.
 
-  Watch streams can be modified by passing different `watch_params` to a previously created
-  `watch_stream`. In order to cancel the watch, use `cancel_watch`.
+  In order to cancel the watch, use `cancel_watch/3`.
 
-  Watch streams are recreated on reconnections.
+  Watch streams are recreated on etcd reconnections, and automatically closed
+  upon watch process termination.
+
+  The same watching process can watch multiple keys by simply calling `watch/5`
+  multiple times passing the same `watching_process` argument.
 
   ## Watch streams
 
-  Watches are long-running requests and use gRPC streams to stream event data. A watch
-  stream is bi-directional; the client writes to the stream to establish watches and
-  reads to receive watch events. A single watch stream can multiplex many distinct
-  watches by tagging events with per-watch identifiers. This multiplexing helps reducing
-  the memory footprint and connection overhead on the core etcd cluster.
+  According to the [Etcd documentation](https://etcd.io/docs/v3.5/learning/api/#watch-api),
+  watches are long-running requests and use gRPC streams to stream event data.
+  A watch stream is bi-directional; the client writes to the stream to
+  establish watches and reads to receive watch events. A single watch stream
+  can multiplex many distinct watches by tagging events with per-watch
+  identifiers. This multiplexing helps reducing the memory footprint and
+  connection overhead on the core etcd cluster.
 
   Watches make three guarantees about events:
 
-    * Ordered - events are ordered by revision; an event will never appear on a watch
-      if it precedes an event in time that has already been posted.
-    * Reliable - a sequence of events will never drop any subsequence of events; if
-      there are events ordered in time as `a` < `b` < `c`, then if the watch receives events
-      `a` and `c`, it is guaranteed to receive `b`.
-    * Atomic - a list of events is guaranteed to encompass complete revisions; updates in
-      the same revision over multiple keys will not be split over several lists of events.
+    * Ordered - events are ordered by revision; an event will never appear on a
+      watch if it precedes an event in time that has already been posted.
+    * Reliable - a sequence of events will never drop any subsequence of
+      events; if there are events ordered in time as `a` < `b` < `c`, then if
+      the watch receives events `a` and `c`, it is guaranteed to receive `b`.
+    * Atomic - a list of events is guaranteed to encompass complete revisions;
+      updates in the same revision over multiple keys will not be split over
+      several lists of events.
 
   ## Options
 
@@ -438,57 +476,73 @@ defmodule EtcdEx do
 
     * `:range_end` - the key range to watch.
     * `:prefix` - if true, sets up `:range_end` as `a+1`.
-    * `:from_key` - if true, sets up `:range_end` as `key` to represent all keys after
-      `key` argument.
-    * `:start_revision` - an optional revision for where to inclusively begin watching.
-      If not given, it will stream events following the revision of the watch creation
-      response header revision. The entire available event history can be watched starting
-      from the last compaction revision.
+    * `:from_key` - if true, sets up `:range_end` as `key` to represent all
+      keys after `key` argument.
+    * `:start_revision` - an optional revision for where to inclusively begin
+      watching.  If not given, it will stream events following the revision of
+      the watch creation response header revision. The entire available event
+      history can be watched starting from the last compaction revision.
     * `:filters` - A list of event types to filter away at server side.
-    * `:prev_kv` - when set, the watch receives the key-value data from before the event
-      happens. This is useful for knowing what data has been overwritten.
-    * `:timeout` - indicates max time to wait for a response. Defaults to `:infinity`.
+    * `:prev_kv` - when set, the watch receives the key-value data from before
+      the event happens. This is useful for knowing what data has been
+      overwritten.
+    * `:timeout` - indicates max time to wait for a response. Defaults to
+      `:infinity`.
 
   ## Watch events
 
-  In response to a `watch`, the client process receives an `:etcd_watch_response` message:
+  In response to a `watch`, the client process receives:
 
-      {:etcd_watch_response,
-        %{
-          header: %{
-            cluster_id: 16182920199522267672,
-            member_id: 9975446501980398855,
-            raft_term: 13,
-            revision: 47068291
-          },
-          watch_id: 1,
-          created: false,
-          canceled: false,
-          compact_revision: 0,
-          events: [
-            ...
-          ]
-        }}
+    * `{:etcd_watch_created, watch_ref}` - when the watch stream is created by
+      the etcd server.
+    * `{:etcd_watch_notify, watch_ref, response}` - for every etcd watch reply.
+    * `{:etcd_watch_notify_progress, response}` - case the option
+      `:progress_notify` is `true`.
+    * `{:etcd_watch_canceled, watch_ref, reason}` - case etcd server cancels
+      the watch stream for any reason. One important case to consider is when
+      etcd compacts revisions, this is an irrecoverable error.
 
-    * `:watch_id` - the ID of the watch that corresponds to the response. As watch
-      streams are recreated during reconnections, the watch ID is exposed only for
-      informative purposes.
-    * `:created` - set to `true` if the response is for a create watch request. The
-      client should store the ID and expect to receive events for the watch on the
-      stream. All events sent to the created watcher will have the same `watch_id`.
-    * `:canceled` - set to `true` if the response is for a cancel watch request. No
-      further events will be sent to the canceled watcher.
-    * `:compact_revision` - set to the minimum historical revision available to etcd
-      if a watcher tries watching at a compacted revision. This happens when creating
-      a watcher at a compacted revision or the watcher cannot catch up with the
-      progress of the key-value store. The watcher will be canceled; creating new
-      watches with the same start_revision will fail.
-    * `:events` - a list of new events in sequence corresponding to the given watch ID.
+  Responses look like:
+
+      %{
+        header: %{
+          cluster_id: 16182920199522267672,
+          member_id: 9975446501980398855,
+          raft_term: 13,
+          revision: 47068291
+        },
+        watch_id: 1,
+        created: false,
+        canceled: false,
+        compact_revision: 0,
+        events: [
+          ...
+        ]
+      }
+
+    * `:watch_id` - the ID of the watch that corresponds to the response. As
+      watch streams are recreated during reconnections, the watch ID is exposed
+      only for informative purposes.
+    * `:created` - set to `true` if the response is for a create watch request.
+      `EtcdEx` transforms `created: true` responses into `:etcd_watch_created`
+      messages.
+    * `:canceled` - set to `true` if the response is for a cancel watch
+      request. No further events will be sent to the canceled watcher. `EtcdEx`
+      also transforms `canceled: true` responses into `:etcd_watch_canceled`
+      messages.
+    * `:compact_revision` - set to the minimum historical revision available to
+      etcd if a watcher tries watching at a compacted revision. This happens
+      when creating a watcher at a compacted revision or the watcher cannot
+      catch up with the progress of the key-value store. The watcher will be
+      canceled; creating new watches with the same start_revision will fail.
+      `EtcdEx` transforms `canceled: true, compact_revision: n` responses into
+      `:etcd_watch_canceled` messages, with `{:compated, n}` as reason.
+    * `:events` - a list of new events in sequence corresponding to watch ID.
 
   ## Events
 
-  Every change to every key is represented with event messages. An event message
-  provides both the data and the type of update:
+  Every change to every key is represented with event messages. An event
+  message provides both the data and the type of update:
 
       %{
         kv: %{
@@ -502,24 +556,27 @@ defmodule EtcdEx do
         type: :PUT
       }
 
-    * `:type` - the kind of event. A `:PUT` type indicates new data has been stored to
-      the key. A `:DELETE` indicates the key was deleted.
-    * `:kv` - the KeyValue associated with the event. A `:PUT` event contains current
-      key-value pair. A `:PUT` event with `:version` 1 indicates the creation of a key.
-      A `:DELETE` event contains the deleted key with its modification revision set to
-      the revision of deletion.
-    * `:prev_kv` - the key-value pair for the key from the revision immediately before
-      the event. To save bandwidth, it is only filled out if the watch has explicitly
-      enabled it.
+    * `:type` - the kind of event. A `:PUT` type indicates new data has been
+      stored to the key. A `:DELETE` indicates the key was deleted.
+    * `:kv` - the KeyValue associated with the event. A `:PUT` event contains
+      current key-value pair. A `:PUT` event with `:version` 1 indicates the
+      creation of a key.  A `:DELETE` event contains the deleted key with its
+      modification revision set to the revision of deletion.
+    * `:prev_kv` - the key-value pair for the key from the revision immediately
+      before the event. To save bandwidth, it is only filled out if the watch
+      has explicitly enabled it.
   """
   @spec watch(conn, watching_process, Types.key(), [Types.watch_opt()], timeout) ::
-          :ok | {:error, Mint.Types.error()}
+          {:ok, watch_ref} | {:error, Mint.Types.error()}
   def watch(conn, watching_process, key, opts \\ [], timeout \\ @default_timeout) do
     EtcdEx.Connection.watch(conn, watching_process, key, opts, timeout)
   end
 
   @doc """
-  Cancels a watch.
+  Cancels all change events being watched by a process.
+
+  It is safe to call `cancel_watch/3` for a process that isn't currently
+  watching any key range.
   """
   @spec cancel_watch(conn, watching_process, timeout) ::
           :ok | {:error, Mint.Types.error()}

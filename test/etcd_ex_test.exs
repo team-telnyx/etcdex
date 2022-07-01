@@ -271,27 +271,27 @@ defmodule EtcdExTest do
 
   describe "watch" do
     test "put", %{conn: conn} do
-      assert :ok = EtcdEx.watch(conn, self(), "foo")
+      assert {:ok, watch_ref} = EtcdEx.watch(conn, self(), "foo")
 
       {_, 0} = etcdctl(["put", "foo", "bar"])
 
-      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+      assert_receive {:etcd_watch_created, ^watch_ref}
 
-      assert_receive {:etcd_watch_notify, _ref,
+      assert_receive {:etcd_watch_notify, ^watch_ref,
                       %{events: [%{type: :PUT, kv: %{key: "foo", value: "bar"}}]}}
     end
 
     test "delete", %{conn: conn} do
       {_, 0} = etcdctl(["put", "foo", "bar"])
 
-      assert :ok = EtcdEx.watch(conn, self(), "foo")
+      assert {:ok, watch_ref} = EtcdEx.watch(conn, self(), "foo")
       assert [_] = EtcdEx.list_watches(conn, self())
 
       {_, 0} = etcdctl(["del", "foo"])
 
-      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+      assert_receive {:etcd_watch_created, ^watch_ref}
 
-      assert_receive {:etcd_watch_notify, _ref,
+      assert_receive {:etcd_watch_notify, ^watch_ref,
                       %{events: [%{type: :DELETE, kv: %{key: "foo", value: ""}}]}}
     end
 
@@ -306,16 +306,16 @@ defmodule EtcdExTest do
 
       assert {"compacted revision" <> _, 0} = etcdctl(["compact", "2"])
 
-      assert :ok = EtcdEx.watch(conn, self(), "foo", start_revision: 1)
+      assert {:ok, watch_ref} = EtcdEx.watch(conn, self(), "foo", start_revision: 1)
       assert [_] = EtcdEx.list_watches(conn, self())
 
-      assert_receive {:etcd_watch_created, ref} when is_reference(ref)
+      assert_receive {:etcd_watch_created, ^watch_ref}
 
-      assert_receive {:etcd_watch_canceled, _ref, {:compacted, _}}
+      assert_receive {:etcd_watch_canceled, ^watch_ref, {:compacted, _}}
     end
 
     test "cancel", %{conn: conn} do
-      assert :ok = EtcdEx.watch(conn, self(), "foo")
+      assert {:ok, _watch_ref} = EtcdEx.watch(conn, self(), "foo")
       assert :ok = EtcdEx.cancel_watch(conn, self())
       assert [] = EtcdEx.list_watches(conn, self())
 
@@ -327,13 +327,14 @@ defmodule EtcdExTest do
     end
 
     test "watch watching process exits", %{conn: conn} do
-      task = Task.async(fn ->
-        :ok = EtcdEx.watch(conn, self(), "foo")
+      task =
+        Task.async(fn ->
+          {:ok, _watch_ref} = EtcdEx.watch(conn, self(), "foo")
 
-        {_, 0} = etcdctl(["put", "foo", "bar"])
+          {_, 0} = etcdctl(["put", "foo", "bar"])
 
-        self()
-      end)
+          self()
+        end)
 
       pid = Task.await(task)
 
@@ -341,9 +342,9 @@ defmodule EtcdExTest do
     end
 
     test "multiple keys", %{conn: conn} do
-      :ok = EtcdEx.watch(conn, self(), "key1")
-      :ok = EtcdEx.watch(conn, self(), "key2")
-      :ok = EtcdEx.watch(conn, self(), "key3")
+      {:ok, watch_ref1} = EtcdEx.watch(conn, self(), "key1")
+      {:ok, watch_ref2} = EtcdEx.watch(conn, self(), "key2")
+      {:ok, watch_ref3} = EtcdEx.watch(conn, self(), "key3")
 
       {_, 0} = etcdctl(["put", "key1", "1"])
       {_, 0} = etcdctl(["put", "key2", "2"])
@@ -351,9 +352,9 @@ defmodule EtcdExTest do
 
       assert [_, _, _] = EtcdEx.list_watches(conn, self())
 
-      assert_receive {:etcd_watch_created, _ref}
-      assert_receive {:etcd_watch_created, _ref}
-      assert_receive {:etcd_watch_created, _ref}
+      assert_receive {:etcd_watch_created, ^watch_ref1}
+      assert_receive {:etcd_watch_created, ^watch_ref2}
+      assert_receive {:etcd_watch_created, ^watch_ref3}
     end
   end
 end

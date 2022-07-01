@@ -45,7 +45,7 @@ defmodule EtcdExReconnectTest do
 
     assert {:ok, _} = EtcdEx.put(conn, "foo", "bar")
 
-    assert :ok = EtcdEx.watch(conn, self(), "foo")
+    assert {:ok, watch_ref} = EtcdEx.watch(conn, self(), "foo")
 
     stop_etcd(proc_ref)
 
@@ -58,9 +58,9 @@ defmodule EtcdExReconnectTest do
 
     assert {:ok, _} = EtcdEx.put(conn, "foo", "baz")
 
-    assert_receive {:etcd_watch_created, _ref}
+    assert_receive {:etcd_watch_created, ^watch_ref}
 
-    assert_receive {:etcd_watch_notify, _ref,
+    assert_receive {:etcd_watch_notify, ^watch_ref,
                     %{events: [%{type: :PUT, kv: %{value: "baz"}}]}}
 
     stop_etcd(proc_ref)
