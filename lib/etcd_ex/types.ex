@@ -14,6 +14,10 @@ defmodule EtcdEx.Types do
   @type sort_order :: :NONE | :ASCEND | :DESCEND
   @type ttl :: pos_integer
 
+  @type peer_url :: binary
+  @type member_id :: pos_integer
+  @type name :: binary
+
   @type filters :: [filter]
   @type filter :: :NOPUT | :NODELETE
 

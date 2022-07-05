@@ -23,6 +23,25 @@ defmodule EtcdEx.Connection do
 
   @closed %Mint.TransportError{reason: :closed}
 
+  @unary_verbs [
+    :get,
+    :put,
+    :delete,
+    :compact,
+    :grant,
+    :revoke,
+    :keep_alive,
+    :ttl,
+    :leases,
+    :lock,
+    :unlock,
+    :add_member,
+    :remove_member,
+    :update_member,
+    :list_members,
+    :promote_member
+  ]
+
   @doc false
   def unary(conn, fun, args, timeout),
     do: Connection.call(conn, {:unary, fun, args}, timeout)
@@ -126,8 +145,7 @@ defmodule EtcdEx.Connection do
     {:reply, {:error, :not_connected}, state}
   end
 
-  def handle_call({:unary, fun, args}, from, state)
-      when fun in [:get, :put, :delete, :grant, :revoke, :keep_alive, :ttl, :leases] do
+  def handle_call({:unary, fun, args}, from, state) when fun in @unary_verbs do
     result = apply(EtcdEx.Mint, fun, [state.env] ++ args)
     handle_unary_request(result, from, state)
   end

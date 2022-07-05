@@ -280,6 +280,19 @@ defmodule EtcdEx.Mint do
 
   @doc """
   """
+  @spec compact(t, Types.revision(), physical? :: boolean) ::
+          {:ok, t, Mint.Types.request_ref()} | {:error, t, Mint.Types.error()}
+  def compact(env, revision, physical?) do
+    body =
+      [revision: revision, physical: physical?]
+      |> EtcdEx.Proto.CompactionRequest.new()
+      |> EtcdEx.Proto.CompactionRequest.encode()
+
+    send(env, "/etcdserverpb.KV/Compact", body, EtcdEx.Proto.CompactionResponse)
+  end
+
+  @doc """
+  """
   @spec grant(t, Types.ttl()) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def grant(env, ttl, lease_id \\ 0) when is_integer(ttl) and ttl >= 0 do
     body =
@@ -465,5 +478,85 @@ defmodule EtcdEx.Mint do
       {:ok, conn} -> {:ok, %{env | conn: conn}}
       {:error, conn, reason} -> {:error, %{env | conn: conn}, reason}
     end
+  end
+
+  @doc """
+  """
+  @spec lock(t, Types.name(), Types.lease_id()) ::
+          {:ok, t} | {:error, t, Mint.Types.error()}
+  def lock(env, name, lease_id) do
+    body =
+      [name: name, lease: lease_id]
+      |> EtcdEx.Proto.LockRequest.new()
+      |> EtcdEx.Proto.LockRequest.encode()
+
+    send(env, "/v3lockpb.Lock/Lock", body, EtcdEx.Proto.LockResponse)
+  end
+
+  @doc """
+  """
+  @spec unlock(t, Types.key()) ::
+          {:ok, t} | {:error, t, Mint.Types.error()}
+  def unlock(env, key) do
+    body =
+      [key: key]
+      |> EtcdEx.Proto.UnlockRequest.new()
+      |> EtcdEx.Proto.UnlockRequest.encode()
+
+    send(env, "/v3lockpb.Lock/Unlock", body, EtcdEx.Proto.UnlockResponse)
+  end
+
+  @doc """
+  """
+  def add_member(env, peer_urls, learner?) do
+    body =
+      [peerURLs: peer_urls, isLearner: learner?]
+      |> EtcdEx.Proto.MemberAddRequest.new()
+      |> EtcdEx.Proto.MemberAddRequest.encode()
+
+    send(env, "/etcdserverpb.Cluster/MemberAdd", body, EtcdEx.Proto.MemberAddResponse)
+  end
+
+  @doc """
+  """
+  def remove_member(env, member_id) do
+    body =
+      [ID: member_id]
+      |> EtcdEx.Proto.MemberRemoveRequest.new()
+      |> EtcdEx.Proto.MemberRemoveRequest.encode()
+
+    send(env, "/etcdserverpb.Cluster/MemberRemove", body, EtcdEx.Proto.MemberRemoveResponse)
+  end
+
+  @doc """
+  """
+  def update_member(env, member_id, peer_urls) do
+    body =
+      [ID: member_id, peerURLs: peer_urls]
+      |> EtcdEx.Proto.MemberUpdateRequest.new()
+      |> EtcdEx.Proto.MemberUpdateRequest.encode()
+
+    send(env, "/etcdserverpb.Cluster/MemberUpdate", body, EtcdEx.Proto.MemberUpdateResponse)
+  end
+
+  @doc """
+  """
+  def list_members(env) do
+    body =
+      EtcdEx.Proto.MemberListRequest.new()
+      |> EtcdEx.Proto.MemberListRequest.encode()
+
+    send(env, "/etcdserverpb.Cluster/MemberList", body, EtcdEx.Proto.MemberListResponse)
+  end
+
+  @doc """
+  """
+  def promote_member(env, member_id) do
+    body =
+      [ID: member_id]
+      |> EtcdEx.Proto.MemberPromoteRequest.new()
+      |> EtcdEx.Proto.MemberPromoteRequest.encode()
+
+    send(env, "/etcdserverpb.Cluster/MemberPromote", body, EtcdEx.Proto.MemberPromoteResponse)
   end
 end

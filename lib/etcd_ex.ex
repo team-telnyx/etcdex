@@ -592,4 +592,86 @@ defmodule EtcdEx do
   def list_watches(conn, watching_process, timeout \\ @default_timeout) do
     EtcdEx.Connection.list_watches(conn, watching_process, timeout)
   end
+
+  @doc """
+  Compacts the event history in the etcd key-value store.
+
+  The key-value store should be periodically compacted or the event history
+  will continue to grow indefinitely.
+  """
+  @spec compact(conn, Types.revision(), physical? :: boolean, timeout) ::
+          {:ok, map} | {:error, any}
+  def compact(conn, revision, physical?, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :compact, [revision, physical?], timeout)
+  end
+
+  @doc """
+  Acquires a distributed shared lock on a given named lock.
+
+  On success, it will return a unique key that exists so long as the lock is
+  held by the caller. This key can be used in conjunction with transactions to
+  safely ensure updates to etcd only occur while holding lock ownership. The
+  lock is held until `unlock` is called on the `key` or the associated lease
+  expires.
+  """
+  @spec lock(conn, Types.name(), Types.lease_id(), timeout) :: {:ok, map} | {:error, any}
+  def lock(conn, name, lease_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :lock, [name, lease_id], timeout)
+  end
+
+  @doc """
+  Takes a key returned by `lock/4` and releases the hold on lock.
+
+  The next `lock/4` caller waiting for the lock will then be woken up and given
+  ownership of the lock.
+  """
+  @spec unlock(conn, Types.key(), timeout) :: {:ok, map} | {:error, any}
+  def unlock(conn, key, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :unlock, [key], timeout)
+  end
+
+  @doc """
+  Adds a member into the cluster.
+  """
+  @spec add_member(conn, [Types.peer_url()], learner? :: boolean, timeout) ::
+          {:ok, map} | {:error, any}
+  def add_member(conn, peer_urls, learner?, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :add_member, [peer_urls, learner?], timeout)
+  end
+
+  @doc """
+  Removes a member from the cluster.
+  """
+  @spec remove_member(conn, Types.member_id(), timeout) ::
+          {:ok, map} | {:error, any}
+  def remove_member(conn, member_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :remove_member, [member_id], timeout)
+  end
+
+  @doc """
+  Updates a cluster member.
+  """
+  @spec update_member(conn, Types.member_id(), [Types.peer_url()], timeout) ::
+          {:ok, map} | {:error, any}
+  def update_member(conn, member_id, peer_urls, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :update_member, [member_id, peer_urls], timeout)
+  end
+
+  @doc """
+  List all members in the cluster.
+  """
+  @spec list_members(conn, timeout) ::
+          {:ok, map} | {:error, any}
+  def list_members(conn, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :list_members, [], timeout)
+  end
+
+  @doc """
+  Promotes a member from raft learner (non-voting) to raft voting member.
+  """
+  @spec promote_member(conn, Types.member_id(), timeout) ::
+          {:ok, map} | {:error, any}
+  def promote_member(conn, member_id, timeout \\ @default_timeout) do
+    EtcdEx.Connection.unary(conn, :promote_member, [member_id], timeout)
+  end
 end
