@@ -41,6 +41,7 @@ defmodule EtcdEx.MixProject do
       {:mint, "~> 1.0"},
       {:protobuf, "~> 0.10"},
       {:connection, "~> 1.1"},
+      {:telemetry, "~> 0.4 or ~> 1.0"},
       {:stream_data, "~> 0.5", only: :test},
       {:excoveralls, "~> 0.10", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}

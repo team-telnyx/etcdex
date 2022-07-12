@@ -54,3 +54,8 @@ EtcdEx.get(MyApp.Etcd, "/foo", from_key: true)
 ```
 
 Check [the documentation](https://hexdocs.pm/etcdex) for other options.
+
+## Telemetry
+
+EtcdEx uses Telemetry to provide instrumentation. See the `EtcdEx.Telemetry`
+module for details on specific events.

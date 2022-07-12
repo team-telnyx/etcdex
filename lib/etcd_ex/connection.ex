@@ -3,7 +3,7 @@ defmodule EtcdEx.Connection do
 
   use Connection
 
-  alias EtcdEx.KeepAliveTimer
+  alias EtcdEx.{KeepAliveTimer, Telemetry}
 
   require Logger
 
@@ -107,20 +107,43 @@ defmodule EtcdEx.Connection do
   def connect(_info, state) do
     {scheme, address, port, opts} = state.endpoint
 
+    metadata = %{
+      scheme: scheme,
+      address: address,
+      port: port
+    }
+
+    start_time = Telemetry.start(:connect, metadata, %{system_time: System.system_time()})
+
     case Mint.HTTP2.connect(scheme, address, port, opts) do
       {:ok, conn} ->
+        Telemetry.stop(:connect, start_time, metadata)
         env = EtcdEx.Mint.wrap(conn)
         keep_alive_timer = KeepAliveTimer.start(state.options)
         state = %{state | env: env, keep_alive_timer: keep_alive_timer}
         {:ok, reconnect_watches(state)}
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        metadata = Map.put(metadata, :error, reason)
+        Telemetry.stop(:connect, start_time, metadata)
+
         {:backoff, Keyword.get(state.options, :backoff, @default_backoff), state}
     end
   end
 
   @impl Connection
   def disconnect(reason, state) do
+    {scheme, address, port, _opts} = state.endpoint
+
+    metadata = %{
+      scheme: scheme,
+      address: address,
+      port: port,
+      reason: reason
+    }
+
+    Telemetry.event(:disconnect, metadata, %{system_time: System.system_time()})
+
     state.pending_requests
     |> Enum.each(fn
       {_request_ref, {:unary, from, _}} -> Connection.reply(from, {:error, reason})
@@ -146,8 +169,12 @@ defmodule EtcdEx.Connection do
   end
 
   def handle_call({:unary, fun, args}, from, state) when fun in @unary_verbs do
+    start_metadata = %{request: fun, args: args}
+    start_time = Telemetry.start(:request, start_metadata, %{system_time: System.system_time()})
+
+    request_metadata = Map.put(start_metadata, :start_time, start_time)
     result = apply(EtcdEx.Mint, fun, [state.env] ++ args)
-    handle_unary_request(result, from, state)
+    handle_unary_request(result, from, state, request_metadata)
   end
 
   def handle_call({:watch, watching_process, key, opts}, _from, state) do
@@ -222,14 +249,23 @@ defmodule EtcdEx.Connection do
     end
   end
 
-  defp handle_unary_request({:ok, env, request_ref}, from, state) do
-    pending_requests = Map.put(state.pending_requests, request_ref, {:unary, from, []})
+  defp handle_unary_request({:ok, env, request_ref}, from, state, metadata) do
+    pending_requests = Map.put(state.pending_requests, request_ref, {:unary, from, [], metadata})
 
     {:noreply, %{state | env: env, pending_requests: pending_requests}}
   end
 
-  defp handle_unary_request({:error, env, reason}, _from, state) do
-    {:reply, {:error, reason}, %{state | env: env}}
+  defp handle_unary_request({:error, env, reason}, _from, state, metadata) do
+    result = {:error, reason}
+
+    end_metadata =
+      metadata
+      |> Map.take([:request, :args])
+      |> Map.put(:result, result)
+
+    Telemetry.stop(:request, metadata.start_time, end_metadata)
+
+    {:reply, result, %{state | env: env}}
   end
 
   defp handle_responses(responses, state) do
@@ -243,8 +279,10 @@ defmodule EtcdEx.Connection do
         # on the queue to be processed. In this case they are just ignored.
         state
 
-      {:unary, from, []} ->
-        pending_requests = Map.put(state.pending_requests, request_ref, {:unary, from, [status]})
+      {:unary, from, [], metadata} ->
+        pending_requests =
+          Map.put(state.pending_requests, request_ref, {:unary, from, [status], metadata})
+
         %{state | pending_requests: pending_requests}
 
       {:watch, _pid} ->
@@ -259,9 +297,9 @@ defmodule EtcdEx.Connection do
         # on the queue to be processed. In this case they are just ignored.
         state
 
-      {:unary, from, acc} ->
+      {:unary, from, acc, metadata} ->
         pending_requests =
-          Map.put(state.pending_requests, request_ref, {:unary, from, acc ++ [headers]})
+          Map.put(state.pending_requests, request_ref, {:unary, from, acc ++ [headers], metadata})
 
         %{state | pending_requests: pending_requests}
 
@@ -277,9 +315,13 @@ defmodule EtcdEx.Connection do
         # on the queue to be processed. In this case they are just ignored.
         state
 
-      {:unary, from, response} ->
+      {:unary, from, response, metadata} ->
         pending_requests =
-          Map.put(state.pending_requests, request_ref, {:unary, from, response ++ [data]})
+          Map.put(
+            state.pending_requests,
+            request_ref,
+            {:unary, from, response ++ [data], metadata}
+          )
 
         %{state | pending_requests: pending_requests}
 
@@ -321,7 +363,7 @@ defmodule EtcdEx.Connection do
       nil ->
         :ok
 
-      {:unary, from, [status, headers | data]} ->
+      {:unary, from, [status, headers | data], metadata} ->
         grpc_status = :proplists.get_value("grpc-status", headers)
         grpc_message = :proplists.get_value("grpc-message", headers)
 
@@ -342,6 +384,13 @@ defmodule EtcdEx.Connection do
               {:error, {:http_error, %{status: status}}}
           end
 
+        end_metadata =
+          metadata
+          |> Map.take([:request, :args])
+          |> Map.put(:result, result)
+
+        Telemetry.stop(:request, metadata.start_time, end_metadata)
+
         Connection.reply(from, result)
     end
 
@@ -351,7 +400,16 @@ defmodule EtcdEx.Connection do
 
   defp process_response({:error, request_ref, reason}, state) do
     case Map.fetch!(state.pending_requests, request_ref) do
-      {:unary, from, _} ->
+      {:unary, from, _, metadata} ->
+        result = {:error, reason}
+
+        end_metadata =
+          metadata
+          |> Map.take([:request, :args])
+          |> Map.put(:result, result)
+
+        Telemetry.stop(:request, metadata.start_time, end_metadata)
+
         Connection.reply(from, {:error, reason})
         pending_requests = Map.delete(state.pending_requests, request_ref)
         %{state | pending_requests: pending_requests}
