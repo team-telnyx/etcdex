@@ -246,6 +246,11 @@ defmodule EtcdEx.Connection do
         state = handle_responses(responses, %{state | env: env})
 
         {:disconnect, reason, state}
+
+      :unknown ->
+        # This may happen when reconnecting, as the process may receive
+        # {:tcp_closed, port} but for a port already closed.
+        {:noreply, state}
     end
   end
 
