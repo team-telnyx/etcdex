@@ -2,6 +2,24 @@ defmodule EtcdExTest do
   use EtcdCase, async: false
   use ExUnitProperties
 
+  @grpc_server_started_total ~r/
+    ^grpc_server_started_total{
+      [^}]*
+      grpc_service="etcdserverpb.Watch"
+      [^}]*
+      grpc_type="bidi_stream"
+      [^}]*
+    }[ ](?<counter>[0-9]+)/x
+
+  @grpc_server_handled_total ~r/
+    ^grpc_server_handled_total{
+      [^}]*
+      grpc_service="etcdserverpb.Watch"
+      [^}]*
+      grpc_type="bidi_stream"
+      [^}]*
+    }[ ](?<counter>[0-9]+)/x
+
   setup_all do
     # Clean up any remainings from past executions
     File.rm_rf!("default.etcd")
@@ -316,20 +334,22 @@ defmodule EtcdExTest do
 
     test "cancel", %{conn: conn} do
       assert {:ok, _watch_ref} = EtcdEx.watch(conn, self(), "foo")
+
+      Process.sleep(1_000)
+
       assert :ok = EtcdEx.cancel_watch(conn, self())
+
+      Process.sleep(1_000)
+
       assert [] = EtcdEx.list_watches(conn, self())
-
-      {_, 0} = etcdctl(["put", "foo", "bar"])
-
-      refute_receive {:etcd_watch_created, _ref}
-
-      refute_receive {:etcd_watch_notify, _ref, _response}
     end
 
     test "watch watching process exits", %{conn: conn} do
       task =
         Task.async(fn ->
           {:ok, _watch_ref} = EtcdEx.watch(conn, self(), "foo")
+
+          Process.sleep(1_000)
 
           {_, 0} = etcdctl(["put", "foo", "bar"])
 
@@ -338,7 +358,34 @@ defmodule EtcdExTest do
 
       pid = Task.await(task)
 
+      Process.sleep(1_000)
+
       assert [] = EtcdEx.list_watches(conn, pid)
+
+      Process.sleep(1_000)
+
+      # When all watches close, we detect it by inspecting the /metrics.
+      #
+      # Following expression should be zero:
+      #
+      # grpc_server_started_total{grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"}) -
+      # grpc_server_handled_total{grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"})
+      assert {:ok, {{_, 200, _}, _, body}} =
+               :httpc.request(:get, {'http://localhost:2379/metrics', []}, [], [])
+
+      grpc_server_started_total =
+        body
+        |> to_string()
+        |> take_metric_vector(@grpc_server_started_total)
+        |> Enum.sum()
+
+      grpc_server_handled_total =
+        body
+        |> to_string()
+        |> take_metric_vector(@grpc_server_handled_total)
+        |> Enum.sum()
+
+      assert grpc_server_started_total == grpc_server_handled_total
     end
 
     test "multiple keys", %{conn: conn} do
@@ -356,5 +403,16 @@ defmodule EtcdExTest do
       assert_receive {:etcd_watch_created, ^watch_ref2}
       assert_receive {:etcd_watch_created, ^watch_ref3}
     end
+  end
+
+  defp take_metric_vector(metrics, regex) do
+    metrics
+    |> String.split("\n")
+    |> Enum.flat_map(fn line ->
+      case Regex.named_captures(regex, line) do
+        nil -> []
+        %{"counter" => counter} -> [String.to_integer(counter)]
+      end
+    end)
   end
 end

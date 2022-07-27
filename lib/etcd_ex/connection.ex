@@ -347,14 +347,24 @@ defmodule EtcdEx.Connection do
           {:ok, env, watch_stream, response} ->
             send(watching_process, response)
 
-            watch_streams =
-              Map.update!(
-                state.watch_streams,
-                watching_process,
-                &%{&1 | watch_stream: watch_stream}
-              )
+            state =
+              if Enum.empty?(watch_stream.watches) do
+                watch_streams = Map.delete(state.watch_streams, watching_process)
+                pending_requests = Map.delete(state.pending_requests, request_ref)
 
-            %{state | env: env, watch_streams: watch_streams}
+                %{state | watch_streams: watch_streams, pending_requests: pending_requests}
+              else
+                watch_streams =
+                  Map.update!(
+                    state.watch_streams,
+                    watching_process,
+                    &%{&1 | watch_stream: watch_stream}
+                  )
+
+                %{state | watch_streams: watch_streams}
+              end
+
+            %{state | env: env}
 
           {:error, env, reason} ->
             Logger.warn("error when sending request: #{inspect(reason)}")
@@ -498,21 +508,21 @@ defmodule EtcdEx.Connection do
       nil ->
         {{:error, :not_found}, state}
 
-      %{request_ref: request_ref, monitor_ref: monitor_ref} ->
-        case EtcdEx.Mint.close_watch_stream(state.env, request_ref) do
+      %{request_ref: request_ref, monitor_ref: monitor_ref, watch_stream: watch_stream} ->
+        %{env: env} = state
+
+        env =
+          Enum.reduce(watch_stream.watches, env, fn {watch_ref, _}, env ->
+            case EtcdEx.WatchStream.cancel_watch(env, request_ref, watch_stream, watch_ref) do
+              {:ok, env} -> env
+              {:error, env, _reason} -> env
+            end
+          end)
+
+        case EtcdEx.Mint.close_watch_stream(env, request_ref) do
           {:ok, env} ->
             Process.demonitor(monitor_ref)
-
-            watch_streams = Map.delete(state.watch_streams, watching_process)
-            pending_requests = Map.delete(state.pending_requests, request_ref)
-
-            state = %{
-              state
-              | env: env,
-                watch_streams: watch_streams,
-                pending_requests: pending_requests
-            }
-
+            state = %{state | env: env}
             {:ok, state}
 
           {:error, env, reason} ->
