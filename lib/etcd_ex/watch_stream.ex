@@ -32,17 +32,22 @@ defmodule EtcdEx.WatchStream do
         events: []
       })
 
-    first? = :queue.is_empty(pending_reqs)
-    pending_reqs = :queue.in_r(watch_ref, pending_reqs)
-    watch_stream = %{watch_stream | pending_reqs: pending_reqs, watches: watches}
+    watch_stream = %{
+      watch_stream
+      | pending_reqs: :queue.in(watch_ref, pending_reqs),
+        watches: watches
+    }
 
-    if first? do
-      case EtcdEx.Mint.watch(env, request_ref, key, opts) do
-        {:ok, env} -> {:ok, env, watch_stream, watch_ref}
-        error -> error
+    result =
+      if :queue.is_empty(pending_reqs) do
+        EtcdEx.Mint.watch(env, request_ref, key, opts)
+      else
+        {:ok, env}
       end
-    else
-      {:ok, env, watch_stream, watch_ref}
+
+    case result do
+      {:ok, env} -> {:ok, env, watch_stream, watch_ref}
+      error -> error
     end
   end
 
@@ -88,7 +93,6 @@ defmodule EtcdEx.WatchStream do
     end
   end
 
-  @doc false
   defp stream_data(env, request_ref, watch_stream, %{created: true, watch_id: watch_id}) do
     %{pending_reqs: pending_reqs, watches: watches, watch_ids: watch_ids} = watch_stream
 
@@ -107,22 +111,23 @@ defmodule EtcdEx.WatchStream do
             watch_ids: watch_ids
         }
 
-        case :queue.peek(pending_reqs) do
-          :empty ->
-            {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
+        result =
+          case :queue.peek(pending_reqs) do
+            :empty ->
+              {:ok, env}
 
-          {:value, next_watch_ref} ->
-            %{key: key, opts: opts} = Map.fetch!(watches, next_watch_ref)
+            {:value, next_watch_ref} ->
+              %{key: key, opts: opts} = Map.fetch!(watches, next_watch_ref)
+              EtcdEx.Mint.watch(env, request_ref, key, opts)
+          end
 
-            case EtcdEx.Mint.watch(env, request_ref, key, opts) do
-              {:ok, env} -> {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
-              error -> error
-            end
+        case result do
+          {:ok, env} -> {:ok, env, watch_stream, {:etcd_watch_created, watch_ref}}
+          error -> error
         end
     end
   end
 
-  @doc false
   defp stream_data(
          env,
          request_ref,
@@ -165,7 +170,6 @@ defmodule EtcdEx.WatchStream do
     end
   end
 
-  @doc false
   defp stream_data(env, _request_ref, watch_stream, %{
          fragment: true,
          events: events,
@@ -183,7 +187,6 @@ defmodule EtcdEx.WatchStream do
     end
   end
 
-  @doc false
   defp stream_data(
          env,
          request_ref,
@@ -228,7 +231,7 @@ defmodule EtcdEx.WatchStream do
       |> Enum.reduce({:queue.new(), watches}, fn
         watch_ref, {pending_reqs, watches} ->
           watches = Map.update!(watches, watch_ref, &%{&1 | events: [], watch_id: nil})
-          pending_reqs = :queue.in_r(watch_ref, pending_reqs)
+          pending_reqs = :queue.in(watch_ref, pending_reqs)
           {pending_reqs, watches}
       end)
 
