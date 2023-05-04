@@ -28,6 +28,9 @@ etcdex-*.tar
 # Etcd db files
 /default.etcd
 
+# Etcd
+test/bin
+
 ### Vim
 # Swap
 [._]*.s[a-v][a-z]

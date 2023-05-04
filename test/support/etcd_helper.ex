@@ -4,7 +4,7 @@ defmodule EtcdHelper do
   """
 
   @github_url "https://github.com/etcd-io/etcd/releases/download"
-  @etcd_version "v3.5.4"
+  @etcd_version "v3.5.8"
 
   @open_port_opts [:exit_status, :binary, :stream, :stderr_to_stdout]
 
@@ -29,15 +29,14 @@ defmodule EtcdHelper do
             download_darwin_etcd()
         end
 
-        {"test/bin/etcd", "test/bin/etcdctl"}
-
       etcd_executable ->
         {etcd_executable, System.find_executable("etcdctl")}
     end
   end
 
   def download_linux_etcd do
-    filename = "etcd-#{@etcd_version}-linux-#{arch()}.tar.gz"
+    basename = "etcd-#{@etcd_version}-linux-#{arch()}"
+    filename = "#{basename}.tar.gz"
 
     if not File.exists?("test/bin/#{filename}") do
       url = "#{@github_url}/#{@etcd_version}/#{filename}"
@@ -56,14 +55,16 @@ defmodule EtcdHelper do
           "xzvf",
           "test/bin/#{filename}",
           "-C",
-          "test/bin",
-          "--strip-components=1"
+          "test/bin"
         ])
     end
+
+    {"test/bin/#{basename}/etcd", "test/bin/#{basename}/etcdctl"}
   end
 
   def download_darwin_etcd do
-    filename = "etcd-#{@etcd_version}-darwin-#{arch()}.zip"
+    basename = "etcd-#{@etcd_version}-darwin-#{arch()}"
+    filename = "#{basename}.zip"
 
     if not File.exists?("test/bin/#{filename}") do
       url = "#{@github_url}/#{@etcd_version}/#{filename}"
@@ -84,6 +85,8 @@ defmodule EtcdHelper do
           "test/bin"
         ])
     end
+
+    {"test/bin/#{basename}/etcd", "test/bin/#{basename}/etcdctl"}
   end
 
   def arch do
