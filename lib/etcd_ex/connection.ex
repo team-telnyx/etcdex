@@ -146,8 +146,11 @@ defmodule EtcdEx.Connection do
 
     state.pending_requests
     |> Enum.each(fn
-      {_request_ref, {:unary, from, _}} -> Connection.reply(from, {:error, reason})
-      {_request_ref, {:watch, _watching_process}} -> :ok
+      {_request_ref, {:unary, from, _status, _metadata}} ->
+        Connection.reply(from, {:error, reason})
+
+      {_request_ref, {:watch, _watching_process}} ->
+        :ok
     end)
 
     unless state.env == nil do
