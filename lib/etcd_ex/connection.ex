@@ -538,13 +538,14 @@ defmodule EtcdEx.Connection do
     state.watch_streams
     |> Map.keys()
     |> Enum.reduce(state, fn watching_process, state ->
-      case EtcdEx.Mint.open_watch_stream(state.env) do
-        {:ok, env, request_ref} ->
-          reconnect_watch(watching_process, request_ref, %{state | env: env})
-
+      with {:ok, env, request_ref} <- EtcdEx.Mint.open_watch_stream(state.env),
+           {:ok, state} <- reconnect_watch(watching_process, request_ref, %{state | env: env}) do
+        state
+      else
         {:error, env, reason} ->
           Logger.warn("error reopening watch streams: #{inspect(reason)}")
-          %{state | env: env}
+          send(watching_process, {:etcd_watch_error, reason})
+          %{state | env: env, watch_streams: Map.delete(state.watch_streams, watching_process)}
       end
     end)
   end
@@ -552,17 +553,23 @@ defmodule EtcdEx.Connection do
   defp reconnect_watch(watching_process, request_ref, state) do
     %{watch_stream: watch_stream} = Map.fetch!(state.watch_streams, watching_process)
 
-    {env, watch_stream} = EtcdEx.WatchStream.reconnect(state.env, request_ref, watch_stream)
+    case EtcdEx.WatchStream.reconnect(state.env, request_ref, watch_stream) do
+      {:ok, env, watch_stream} ->
+        pending_requests =
+          Map.put(state.pending_requests, request_ref, {:watch, watching_process})
 
-    pending_requests = Map.put(state.pending_requests, request_ref, {:watch, watching_process})
+        watch_streams =
+          Map.update!(
+            state.watch_streams,
+            watching_process,
+            &%{&1 | watch_stream: watch_stream, request_ref: request_ref}
+          )
 
-    watch_streams =
-      Map.update!(
-        state.watch_streams,
-        watching_process,
-        &%{&1 | watch_stream: watch_stream, request_ref: request_ref}
-      )
+        {:ok,
+         %{state | env: env, pending_requests: pending_requests, watch_streams: watch_streams}}
 
-    %{state | env: env, pending_requests: pending_requests, watch_streams: watch_streams}
+      {:error, env, reason} ->
+        {:error, env, reason}
+    end
   end
 end
