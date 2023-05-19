@@ -501,6 +501,9 @@ defmodule EtcdEx do
     * `{:etcd_watch_canceled, watch_ref, reason}` - case etcd server cancels
       the watch stream for any reason. One important case to consider is when
       etcd compacts revisions, this is an irrecoverable error.
+    * `{:etcd_watch_error, reason}` - case the watch stream is closed due to any
+      error. This is an irrecoverable error and all watches created by the
+      client process are effectively canceled.
 
   Responses look like:
 
