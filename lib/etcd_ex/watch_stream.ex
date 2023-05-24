@@ -244,11 +244,10 @@ defmodule EtcdEx.WatchStream do
 
         case EtcdEx.Mint.watch(env, request_ref, key, opts) do
           {:ok, env} ->
-            {env, watch_stream}
+            {:ok, env, watch_stream}
 
           {:error, env, reason} ->
-            Logger.warn("error while reconnecting watches: #{inspect(reason)}")
-            {env, watch_stream}
+            {:error, env, reason}
         end
     end
   end
