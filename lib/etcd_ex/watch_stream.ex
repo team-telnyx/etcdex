@@ -144,17 +144,15 @@ defmodule EtcdEx.WatchStream do
         {:error, env, :bad_ref}
 
       watch_ref ->
-        %{conn: conn} = env
-
         watches = Map.delete(watches, watch_ref)
         watch_ids = Map.delete(watch_ids, watch_id)
         watch_stream = %{watch_stream | watches: watches, watch_ids: watch_ids}
 
         env =
           if Enum.empty?(watch_ids) do
-            case Mint.HTTP2.cancel_request(conn, request_ref) do
-              {:ok, conn} -> %{env | conn: conn}
-              {:error, conn, _reason} -> %{env | conn: conn}
+            case EtcdEx.Mint.cancel_request(env, request_ref) do
+              {:ok, env} -> env
+              {:error, env, _reason} -> env
             end
           else
             env

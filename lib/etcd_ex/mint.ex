@@ -167,6 +167,19 @@ defmodule EtcdEx.Mint do
     end
   end
 
+  @doc false
+  def cancel_request(env, request_ref) do
+    %{conn: conn, streams: streams} = env
+
+    case Mint.HTTP2.cancel_request(conn, request_ref) do
+      {:ok, conn} ->
+        {:ok, %{env | conn: conn, streams: Map.delete(streams, request_ref)}}
+
+      {:error, conn, reason} ->
+        {:error, %{env | conn: conn}, reason}
+    end
+  end
+
   defp reduce_responses({:data, request_ref, data}, {responses, env}) do
     {decoder, pending} = Map.fetch!(env.streams, request_ref)
 
