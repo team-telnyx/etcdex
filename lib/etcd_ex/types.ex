@@ -59,4 +59,13 @@ defmodule EtcdEx.Types do
 
   @type ttl_opt ::
           {:keys, boolean}
+
+  @type watch_id :: integer
+
+  @type response ::
+          {:status, Mint.Types.request_ref(), Mint.Types.status()}
+          | {:headers, Mint.Types.request_ref(), Mint.Types.headers()}
+          | {:data, Mint.Types.request_ref(), map}
+          | {:done, Mint.Types.request_ref()}
+          | {:error, Mint.Types.request_ref(), reason :: term}
 end
