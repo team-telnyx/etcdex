@@ -28,8 +28,8 @@ defmodule EtcdEx.Mint do
           {:ok, t, Mint.Types.request_ref()} | {:error, t, Mint.Types.error()}
   def get(env, key, opts \\ []) when is_binary(key) and is_list(opts) do
     body =
-      ([key: key] ++ build_get_opts(key, opts))
-      |> EtcdEx.Proto.RangeRequest.new()
+      EtcdEx.Proto.RangeRequest
+      |> struct([key: key] ++ build_get_opts(key, opts))
       |> EtcdEx.Proto.RangeRequest.encode()
 
     send(env, "/etcdserverpb.KV/Range", body, EtcdEx.Proto.RangeResponse)
@@ -225,8 +225,8 @@ defmodule EtcdEx.Mint do
   def put(env, key, value, opts \\ [])
       when is_binary(key) and is_binary(value) and is_list(opts) do
     body =
-      ([key: key, value: value] ++ build_put_opts(key, opts))
-      |> EtcdEx.Proto.PutRequest.new()
+      EtcdEx.Proto.PutRequest
+      |> struct([key: key, value: value] ++ build_put_opts(key, opts))
       |> EtcdEx.Proto.PutRequest.encode()
 
     send(env, "/etcdserverpb.KV/Put", body, EtcdEx.Proto.PutResponse)
@@ -261,8 +261,8 @@ defmodule EtcdEx.Mint do
   @spec delete(t, Types.key(), [Types.delete_opt()]) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def delete(env, key, opts \\ []) do
     body =
-      ([key: key] ++ build_delete_opts(key, opts))
-      |> EtcdEx.Proto.DeleteRangeRequest.new()
+      EtcdEx.Proto.DeleteRangeRequest
+      |> struct([key: key] ++ build_delete_opts(key, opts))
       |> EtcdEx.Proto.DeleteRangeRequest.encode()
 
     send(env, "/etcdserverpb.KV/DeleteRange", body, EtcdEx.Proto.DeleteRangeResponse)
@@ -297,8 +297,8 @@ defmodule EtcdEx.Mint do
           {:ok, t, Mint.Types.request_ref()} | {:error, t, Mint.Types.error()}
   def compact(env, revision, physical?) do
     body =
-      [revision: revision, physical: physical?]
-      |> EtcdEx.Proto.CompactionRequest.new()
+      EtcdEx.Proto.CompactionRequest
+      |> struct(revision: revision, physical: physical?)
       |> EtcdEx.Proto.CompactionRequest.encode()
 
     send(env, "/etcdserverpb.KV/Compact", body, EtcdEx.Proto.CompactionResponse)
@@ -309,8 +309,8 @@ defmodule EtcdEx.Mint do
   @spec grant(t, Types.ttl()) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def grant(env, ttl, lease_id \\ 0) when is_integer(ttl) and ttl >= 0 do
     body =
-      [ID: lease_id, TTL: ttl]
-      |> EtcdEx.Proto.LeaseGrantRequest.new()
+      EtcdEx.Proto.LeaseGrantRequest
+      |> struct(ID: lease_id, TTL: ttl)
       |> EtcdEx.Proto.LeaseGrantRequest.encode()
 
     send(env, "/etcdserverpb.Lease/LeaseGrant", body, EtcdEx.Proto.LeaseGrantResponse)
@@ -321,8 +321,8 @@ defmodule EtcdEx.Mint do
   @spec revoke(t, Types.lease_id()) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def revoke(env, lease_id) when is_integer(lease_id) do
     body =
-      [ID: lease_id]
-      |> EtcdEx.Proto.LeaseRevokeRequest.new()
+      EtcdEx.Proto.LeaseRevokeRequest
+      |> struct(ID: lease_id)
       |> EtcdEx.Proto.LeaseRevokeRequest.encode()
 
     send(env, "/etcdserverpb.Lease/LeaseRevoke", body, EtcdEx.Proto.LeaseRevokeResponse)
@@ -334,8 +334,8 @@ defmodule EtcdEx.Mint do
   @spec keep_alive(t, Types.lease_id()) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def keep_alive(env, lease_id) do
     body =
-      [ID: lease_id]
-      |> EtcdEx.Proto.LeaseKeepAliveRequest.new()
+      EtcdEx.Proto.LeaseKeepAliveRequest
+      |> struct(ID: lease_id)
       |> EtcdEx.Proto.LeaseKeepAliveRequest.encode()
 
     send(env, "/etcdserverpb.Lease/LeaseKeepAlive", body, EtcdEx.Proto.LeaseKeepAliveResponse)
@@ -346,8 +346,8 @@ defmodule EtcdEx.Mint do
   @spec ttl(t, Types.lease_id(), [Types.ttl_opt()]) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def ttl(env, lease_id, opts \\ []) do
     body =
-      ([ID: lease_id] ++ build_ttl_opts(opts))
-      |> EtcdEx.Proto.LeaseTimeToLiveRequest.new()
+      EtcdEx.Proto.LeaseTimeToLiveRequest
+      |> struct([ID: lease_id] ++ build_ttl_opts(opts))
       |> EtcdEx.Proto.LeaseTimeToLiveRequest.encode()
 
     send(env, "/etcdserverpb.Lease/LeaseTimeToLive", body, EtcdEx.Proto.LeaseTimeToLiveResponse)
@@ -366,7 +366,8 @@ defmodule EtcdEx.Mint do
   @spec leases(t) :: {:ok, t} | {:error, t, Mint.Types.error()}
   def leases(env) do
     body =
-      EtcdEx.Proto.LeaseLeasesRequest.new()
+      EtcdEx.Proto.LeaseLeasesRequest
+      |> struct()
       |> EtcdEx.Proto.LeaseLeasesRequest.encode()
 
     send(env, "/etcdserverpb.Lease/LeaseLeases", body, EtcdEx.Proto.LeaseLeasesResponse)
@@ -416,12 +417,12 @@ defmodule EtcdEx.Mint do
     %{conn: conn} = env
 
     create_request =
-      ([key: key] ++ build_watch_opts(key, opts))
-      |> EtcdEx.Proto.WatchCreateRequest.new()
+      EtcdEx.Proto.WatchCreateRequest
+      |> struct([key: key] ++ build_watch_opts(key, opts))
 
     body =
-      [request_union: {:create_request, create_request}]
-      |> EtcdEx.Proto.WatchRequest.new()
+      EtcdEx.Proto.WatchRequest
+      |> struct(request_union: {:create_request, create_request})
       |> EtcdEx.Proto.WatchRequest.encode()
 
     len = byte_size(body)
@@ -476,12 +477,12 @@ defmodule EtcdEx.Mint do
     %{conn: conn} = env
 
     cancel_request =
-      [watch_id: watch_id]
-      |> EtcdEx.Proto.WatchCancelRequest.new()
+      EtcdEx.Proto.WatchCancelRequest
+      |> struct(watch_id: watch_id)
 
     body =
-      [request_union: {:cancel_request, cancel_request}]
-      |> EtcdEx.Proto.WatchRequest.new()
+      EtcdEx.Proto.WatchRequest
+      |> struct(request_union: {:cancel_request, cancel_request})
       |> EtcdEx.Proto.WatchRequest.encode()
 
     len = byte_size(body)
@@ -499,8 +500,8 @@ defmodule EtcdEx.Mint do
           {:ok, t} | {:error, t, Mint.Types.error()}
   def lock(env, name, lease_id) do
     body =
-      [name: name, lease: lease_id]
-      |> EtcdEx.Proto.LockRequest.new()
+      EtcdEx.Proto.LockRequest
+      |> struct(name: name, lease: lease_id)
       |> EtcdEx.Proto.LockRequest.encode()
 
     send(env, "/v3lockpb.Lock/Lock", body, EtcdEx.Proto.LockResponse)
@@ -512,8 +513,8 @@ defmodule EtcdEx.Mint do
           {:ok, t} | {:error, t, Mint.Types.error()}
   def unlock(env, key) do
     body =
-      [key: key]
-      |> EtcdEx.Proto.UnlockRequest.new()
+      EtcdEx.Proto.UnlockRequest
+      |> struct(key: key)
       |> EtcdEx.Proto.UnlockRequest.encode()
 
     send(env, "/v3lockpb.Lock/Unlock", body, EtcdEx.Proto.UnlockResponse)
@@ -523,8 +524,8 @@ defmodule EtcdEx.Mint do
   """
   def add_member(env, peer_urls, learner?) do
     body =
-      [peerURLs: peer_urls, isLearner: learner?]
-      |> EtcdEx.Proto.MemberAddRequest.new()
+      EtcdEx.Proto.MemberAddRequest
+      |> struct(peerURLs: peer_urls, isLearner: learner?)
       |> EtcdEx.Proto.MemberAddRequest.encode()
 
     send(env, "/etcdserverpb.Cluster/MemberAdd", body, EtcdEx.Proto.MemberAddResponse)
@@ -534,8 +535,8 @@ defmodule EtcdEx.Mint do
   """
   def remove_member(env, member_id) do
     body =
-      [ID: member_id]
-      |> EtcdEx.Proto.MemberRemoveRequest.new()
+      EtcdEx.Proto.MemberRemoveRequest
+      |> struct(ID: member_id)
       |> EtcdEx.Proto.MemberRemoveRequest.encode()
 
     send(env, "/etcdserverpb.Cluster/MemberRemove", body, EtcdEx.Proto.MemberRemoveResponse)
@@ -545,8 +546,8 @@ defmodule EtcdEx.Mint do
   """
   def update_member(env, member_id, peer_urls) do
     body =
-      [ID: member_id, peerURLs: peer_urls]
-      |> EtcdEx.Proto.MemberUpdateRequest.new()
+      EtcdEx.Proto.MemberUpdateRequest
+      |> struct(ID: member_id, peerURLs: peer_urls)
       |> EtcdEx.Proto.MemberUpdateRequest.encode()
 
     send(env, "/etcdserverpb.Cluster/MemberUpdate", body, EtcdEx.Proto.MemberUpdateResponse)
@@ -556,7 +557,8 @@ defmodule EtcdEx.Mint do
   """
   def list_members(env) do
     body =
-      EtcdEx.Proto.MemberListRequest.new()
+      EtcdEx.Proto.MemberListRequest
+      |> struct()
       |> EtcdEx.Proto.MemberListRequest.encode()
 
     send(env, "/etcdserverpb.Cluster/MemberList", body, EtcdEx.Proto.MemberListResponse)
@@ -566,8 +568,8 @@ defmodule EtcdEx.Mint do
   """
   def promote_member(env, member_id) do
     body =
-      [ID: member_id]
-      |> EtcdEx.Proto.MemberPromoteRequest.new()
+      EtcdEx.Proto.MemberPromoteRequest
+      |> struct(ID: member_id)
       |> EtcdEx.Proto.MemberPromoteRequest.encode()
 
     send(env, "/etcdserverpb.Cluster/MemberPromote", body, EtcdEx.Proto.MemberPromoteResponse)
