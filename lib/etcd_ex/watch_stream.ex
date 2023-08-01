@@ -7,7 +7,7 @@ defmodule EtcdEx.WatchStream do
 
   @type watch_ref :: reference
 
-  @opaque t() :: %__MODULE__{}
+  @type t() :: %__MODULE__{}
 
   defstruct pending_reqs: :queue.new(), watches: %{}, watch_ids: %{}
 

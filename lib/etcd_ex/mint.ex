@@ -12,7 +12,7 @@ defmodule EtcdEx.Mint do
   @doc """
   Wraps a `Mint` connection.
   """
-  @spec wrap(Mint.HTTP.t()) :: t
+  @spec wrap(Mint.HTTP2.t()) :: t
   def wrap(conn), do: %__MODULE__{conn: conn}
 
   @doc """

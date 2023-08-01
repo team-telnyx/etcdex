@@ -51,7 +51,7 @@ defmodule EtcdEx do
 
   @type transport :: :tcp | :tls | :ssl
 
-  @type transport_opts :: [:gen_tcp.connect_option()] | [:ssl.connect_option()]
+  @type transport_opts :: [:gen_tcp.connect_option()] | [:ssl.tls_client_option()]
 
   @type extended_options :: {atom, any}
 
