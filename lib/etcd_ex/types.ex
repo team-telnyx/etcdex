@@ -68,4 +68,8 @@ defmodule EtcdEx.Types do
           | {:data, Mint.Types.request_ref(), map}
           | {:done, Mint.Types.request_ref()}
           | {:error, Mint.Types.request_ref(), reason :: term}
+
+  @type error ::
+          {:grpc_error, %{grpc_status: pos_integer, grpc_message: binary}}
+          | {:http_error, %{status: pos_integer}}
 end
