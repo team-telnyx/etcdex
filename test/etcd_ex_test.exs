@@ -21,11 +21,12 @@ defmodule EtcdExTest do
     }[ ](?<counter>[0-9]+)/x
 
   setup_all do
-    # Clean up any remainings from past executions
-    File.rm_rf!("default.etcd")
+    start_etcd()
 
-    proc_ref = start_etcd()
-    on_exit(fn -> stop_etcd(proc_ref) end)
+    on_exit(fn ->
+      stop_etcd()
+      remove_etcd_container()
+    end)
 
     :ok
   end

@@ -6,9 +6,23 @@ defmodule EtcdCase do
 
   use ExUnit.CaseTemplate
 
-  @etcd_tools EtcdHelper.get_etcd()
-  @etcd_path elem(@etcd_tools, 0)
-  @etcdctl_path elem(@etcd_tools, 1)
+  @container_name "etcdex-test"
+  @start_args [
+    "run",
+    "--name",
+    @container_name,
+    "--env",
+    "ALLOW_NONE_AUTHENTICATION=yes",
+    "--publish",
+    "2379:2379",
+    "--publish",
+    "2380:2380",
+    "--volume",
+    "#{Path.expand("tmp")}:/bitnami/etcd/data",
+    "--detach",
+    "--rm",
+    "bitnami/etcd"
+  ]
 
   using do
     quote do
@@ -20,26 +34,39 @@ defmodule EtcdCase do
   @doc """
   Starts etcd in the background.
   """
-  @spec start_etcd(args :: [String.t()]) :: {port, os_pid :: integer}
-  def start_etcd(args \\ []) do
-    port = EtcdHelper.start_etcd(@etcd_path, args)
+  @spec start_etcd() :: container_id :: binary()
+  def start_etcd do
+    File.mkdir_p("tmp")
 
-    os_pid =
-      case Port.info(port, :os_pid) do
-        {_, os_pid} -> os_pid
-        _ -> nil
+    {container_id, 0} =
+      case System.cmd("docker", @start_args) do
+        {_, 125} ->
+          # maybe container is still running, stop and try again
+          stop_etcd()
+          System.cmd("docker", @start_args)
+
+        res ->
+          res
       end
 
-    {port, os_pid}
+    :timer.sleep(5000)
+
+    String.trim(container_id)
   end
 
   @doc """
   Stop the background etcd instance.
   """
-  @spec stop_etcd({port, os_pid :: integer}) ::
-          {Collectable.t(), exit_status :: non_neg_integer()}
-  def stop_etcd({_port, os_pid}) do
-    System.cmd("kill", ["#{os_pid}"])
+  def stop_etcd do
+    System.cmd("docker", ["stop", @container_name])
+  end
+
+  @doc """
+  Removes etcd container
+  """
+  def remove_etcd_container do
+    System.cmd("docker", ["rm", @container_name])
+    File.rm_rf("tmp")
   end
 
   @doc """
@@ -47,6 +74,6 @@ defmodule EtcdCase do
   """
   @spec etcdctl(args :: [String.t()]) :: {Collectable.t(), exit_status :: non_neg_integer()}
   def etcdctl(args \\ []) do
-    System.cmd(@etcdctl_path, args)
+    System.cmd("docker", ["exec", @container_name, "etcdctl" | args])
   end
 end
