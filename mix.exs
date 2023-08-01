@@ -39,7 +39,7 @@ defmodule EtcdEx.MixProject do
   defp deps do
     [
       {:mint, "~> 1.0"},
-      {:protobuf, "~> 0.10"},
+      {:protobuf, "~> 0.12"},
       {:connection, "~> 1.1"},
       {:telemetry, "~> 0.4 or ~> 1.0"},
 
