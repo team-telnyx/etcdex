@@ -61,7 +61,7 @@ defmodule EtcdEx.MixProject do
               "router.proto"
             ] do
           "cmd protoc --elixir_out=./lib/etcd_ex/protos -Iprotos protos/#{file}"
-        end
+        end ++ ["format lib/etcd_ex/protos/**/*.ex"]
     ]
   end
 

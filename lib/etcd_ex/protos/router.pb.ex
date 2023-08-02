@@ -3,9 +3,9 @@ defmodule EtcdEx.Proto.AlarmType do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :NONE, 0
-  field :NOSPACE, 1
-  field :CORRUPT, 2
+  field(:NONE, 0)
+  field(:NOSPACE, 1)
+  field(:CORRUPT, 2)
 end
 
 defmodule EtcdEx.Proto.RangeRequest.SortOrder do
@@ -13,9 +13,9 @@ defmodule EtcdEx.Proto.RangeRequest.SortOrder do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :NONE, 0
-  field :ASCEND, 1
-  field :DESCEND, 2
+  field(:NONE, 0)
+  field(:ASCEND, 1)
+  field(:DESCEND, 2)
 end
 
 defmodule EtcdEx.Proto.RangeRequest.SortTarget do
@@ -23,11 +23,11 @@ defmodule EtcdEx.Proto.RangeRequest.SortTarget do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :KEY, 0
-  field :VERSION, 1
-  field :CREATE, 2
-  field :MOD, 3
-  field :VALUE, 4
+  field(:KEY, 0)
+  field(:VERSION, 1)
+  field(:CREATE, 2)
+  field(:MOD, 3)
+  field(:VALUE, 4)
 end
 
 defmodule EtcdEx.Proto.Compare.CompareResult do
@@ -35,10 +35,10 @@ defmodule EtcdEx.Proto.Compare.CompareResult do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :EQUAL, 0
-  field :GREATER, 1
-  field :LESS, 2
-  field :NOT_EQUAL, 3
+  field(:EQUAL, 0)
+  field(:GREATER, 1)
+  field(:LESS, 2)
+  field(:NOT_EQUAL, 3)
 end
 
 defmodule EtcdEx.Proto.Compare.CompareTarget do
@@ -46,11 +46,11 @@ defmodule EtcdEx.Proto.Compare.CompareTarget do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :VERSION, 0
-  field :CREATE, 1
-  field :MOD, 2
-  field :VALUE, 3
-  field :LEASE, 4
+  field(:VERSION, 0)
+  field(:CREATE, 1)
+  field(:MOD, 2)
+  field(:VALUE, 3)
+  field(:LEASE, 4)
 end
 
 defmodule EtcdEx.Proto.WatchCreateRequest.FilterType do
@@ -58,8 +58,8 @@ defmodule EtcdEx.Proto.WatchCreateRequest.FilterType do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :NOPUT, 0
-  field :NODELETE, 1
+  field(:NOPUT, 0)
+  field(:NODELETE, 1)
 end
 
 defmodule EtcdEx.Proto.AlarmRequest.AlarmAction do
@@ -67,9 +67,9 @@ defmodule EtcdEx.Proto.AlarmRequest.AlarmAction do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :GET, 0
-  field :ACTIVATE, 1
-  field :DEACTIVATE, 2
+  field(:GET, 0)
+  field(:ACTIVATE, 1)
+  field(:DEACTIVATE, 2)
 end
 
 defmodule EtcdEx.Proto.HealthCheckResponse.ServingStatus do
@@ -77,10 +77,10 @@ defmodule EtcdEx.Proto.HealthCheckResponse.ServingStatus do
 
   use Protobuf, enum: true, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :UNKNOWN, 0
-  field :SERVING, 1
-  field :NOT_SERVING, 2
-  field :SERVICE_UNKNOWN, 3
+  field(:UNKNOWN, 0)
+  field(:SERVING, 1)
+  field(:NOT_SERVING, 2)
+  field(:SERVICE_UNKNOWN, 3)
 end
 
 defmodule EtcdEx.Proto.ResponseHeader do
@@ -88,10 +88,10 @@ defmodule EtcdEx.Proto.ResponseHeader do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :cluster_id, 1, type: :uint64, json_name: "clusterId"
-  field :member_id, 2, type: :uint64, json_name: "memberId"
-  field :revision, 3, type: :int64
-  field :raft_term, 4, type: :uint64, json_name: "raftTerm"
+  field(:cluster_id, 1, type: :uint64, json_name: "clusterId")
+  field(:member_id, 2, type: :uint64, json_name: "memberId")
+  field(:revision, 3, type: :int64)
+  field(:raft_term, 4, type: :uint64, json_name: "raftTerm")
 end
 
 defmodule EtcdEx.Proto.RangeRequest do
@@ -99,28 +99,30 @@ defmodule EtcdEx.Proto.RangeRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :key, 1, type: :bytes
-  field :range_end, 2, type: :bytes, json_name: "rangeEnd"
-  field :limit, 3, type: :int64
-  field :revision, 4, type: :int64
+  field(:key, 1, type: :bytes)
+  field(:range_end, 2, type: :bytes, json_name: "rangeEnd")
+  field(:limit, 3, type: :int64)
+  field(:revision, 4, type: :int64)
 
-  field :sort_order, 5,
+  field(:sort_order, 5,
     type: EtcdEx.Proto.RangeRequest.SortOrder,
     json_name: "sortOrder",
     enum: true
+  )
 
-  field :sort_target, 6,
+  field(:sort_target, 6,
     type: EtcdEx.Proto.RangeRequest.SortTarget,
     json_name: "sortTarget",
     enum: true
+  )
 
-  field :serializable, 7, type: :bool
-  field :keys_only, 8, type: :bool, json_name: "keysOnly"
-  field :count_only, 9, type: :bool, json_name: "countOnly"
-  field :min_mod_revision, 10, type: :int64, json_name: "minModRevision"
-  field :max_mod_revision, 11, type: :int64, json_name: "maxModRevision"
-  field :min_create_revision, 12, type: :int64, json_name: "minCreateRevision"
-  field :max_create_revision, 13, type: :int64, json_name: "maxCreateRevision"
+  field(:serializable, 7, type: :bool)
+  field(:keys_only, 8, type: :bool, json_name: "keysOnly")
+  field(:count_only, 9, type: :bool, json_name: "countOnly")
+  field(:min_mod_revision, 10, type: :int64, json_name: "minModRevision")
+  field(:max_mod_revision, 11, type: :int64, json_name: "maxModRevision")
+  field(:min_create_revision, 12, type: :int64, json_name: "minCreateRevision")
+  field(:max_create_revision, 13, type: :int64, json_name: "maxCreateRevision")
 end
 
 defmodule EtcdEx.Proto.RangeResponse do
@@ -128,10 +130,10 @@ defmodule EtcdEx.Proto.RangeResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :kvs, 2, repeated: true, type: Mvccpb.KeyValue
-  field :more, 3, type: :bool
-  field :count, 4, type: :int64
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:kvs, 2, repeated: true, type: Mvccpb.KeyValue)
+  field(:more, 3, type: :bool)
+  field(:count, 4, type: :int64)
 end
 
 defmodule EtcdEx.Proto.PutRequest do
@@ -139,12 +141,12 @@ defmodule EtcdEx.Proto.PutRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :key, 1, type: :bytes
-  field :value, 2, type: :bytes
-  field :lease, 3, type: :int64
-  field :prev_kv, 4, type: :bool, json_name: "prevKv"
-  field :ignore_value, 5, type: :bool, json_name: "ignoreValue"
-  field :ignore_lease, 6, type: :bool, json_name: "ignoreLease"
+  field(:key, 1, type: :bytes)
+  field(:value, 2, type: :bytes)
+  field(:lease, 3, type: :int64)
+  field(:prev_kv, 4, type: :bool, json_name: "prevKv")
+  field(:ignore_value, 5, type: :bool, json_name: "ignoreValue")
+  field(:ignore_lease, 6, type: :bool, json_name: "ignoreLease")
 end
 
 defmodule EtcdEx.Proto.PutResponse do
@@ -152,8 +154,8 @@ defmodule EtcdEx.Proto.PutResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :prev_kv, 2, type: Mvccpb.KeyValue, json_name: "prevKv"
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:prev_kv, 2, type: Mvccpb.KeyValue, json_name: "prevKv")
 end
 
 defmodule EtcdEx.Proto.DeleteRangeRequest do
@@ -161,9 +163,9 @@ defmodule EtcdEx.Proto.DeleteRangeRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :key, 1, type: :bytes
-  field :range_end, 2, type: :bytes, json_name: "rangeEnd"
-  field :prev_kv, 3, type: :bool, json_name: "prevKv"
+  field(:key, 1, type: :bytes)
+  field(:range_end, 2, type: :bytes, json_name: "rangeEnd")
+  field(:prev_kv, 3, type: :bool, json_name: "prevKv")
 end
 
 defmodule EtcdEx.Proto.DeleteRangeResponse do
@@ -171,9 +173,9 @@ defmodule EtcdEx.Proto.DeleteRangeResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :deleted, 2, type: :int64
-  field :prev_kvs, 3, repeated: true, type: Mvccpb.KeyValue, json_name: "prevKvs"
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:deleted, 2, type: :int64)
+  field(:prev_kvs, 3, repeated: true, type: Mvccpb.KeyValue, json_name: "prevKvs")
 end
 
 defmodule EtcdEx.Proto.RequestOp do
@@ -181,17 +183,18 @@ defmodule EtcdEx.Proto.RequestOp do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  oneof :request, 0
+  oneof(:request, 0)
 
-  field :request_range, 1, type: EtcdEx.Proto.RangeRequest, json_name: "requestRange", oneof: 0
-  field :request_put, 2, type: EtcdEx.Proto.PutRequest, json_name: "requestPut", oneof: 0
+  field(:request_range, 1, type: EtcdEx.Proto.RangeRequest, json_name: "requestRange", oneof: 0)
+  field(:request_put, 2, type: EtcdEx.Proto.PutRequest, json_name: "requestPut", oneof: 0)
 
-  field :request_delete_range, 3,
+  field(:request_delete_range, 3,
     type: EtcdEx.Proto.DeleteRangeRequest,
     json_name: "requestDeleteRange",
     oneof: 0
+  )
 
-  field :request_txn, 4, type: EtcdEx.Proto.TxnRequest, json_name: "requestTxn", oneof: 0
+  field(:request_txn, 4, type: EtcdEx.Proto.TxnRequest, json_name: "requestTxn", oneof: 0)
 end
 
 defmodule EtcdEx.Proto.ResponseOp do
@@ -199,17 +202,19 @@ defmodule EtcdEx.Proto.ResponseOp do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  oneof :response, 0
+  oneof(:response, 0)
 
-  field :response_range, 1, type: EtcdEx.Proto.RangeResponse, json_name: "responseRange", oneof: 0
-  field :response_put, 2, type: EtcdEx.Proto.PutResponse, json_name: "responsePut", oneof: 0
+  field(:response_range, 1, type: EtcdEx.Proto.RangeResponse, json_name: "responseRange", oneof: 0)
 
-  field :response_delete_range, 3,
+  field(:response_put, 2, type: EtcdEx.Proto.PutResponse, json_name: "responsePut", oneof: 0)
+
+  field(:response_delete_range, 3,
     type: EtcdEx.Proto.DeleteRangeResponse,
     json_name: "responseDeleteRange",
     oneof: 0
+  )
 
-  field :response_txn, 4, type: EtcdEx.Proto.TxnResponse, json_name: "responseTxn", oneof: 0
+  field(:response_txn, 4, type: EtcdEx.Proto.TxnResponse, json_name: "responseTxn", oneof: 0)
 end
 
 defmodule EtcdEx.Proto.Compare do
@@ -217,17 +222,17 @@ defmodule EtcdEx.Proto.Compare do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  oneof :target_union, 0
+  oneof(:target_union, 0)
 
-  field :result, 1, type: EtcdEx.Proto.Compare.CompareResult, enum: true
-  field :target, 2, type: EtcdEx.Proto.Compare.CompareTarget, enum: true
-  field :key, 3, type: :bytes
-  field :version, 4, type: :int64, oneof: 0
-  field :create_revision, 5, type: :int64, json_name: "createRevision", oneof: 0
-  field :mod_revision, 6, type: :int64, json_name: "modRevision", oneof: 0
-  field :value, 7, type: :bytes, oneof: 0
-  field :lease, 8, type: :int64, oneof: 0
-  field :range_end, 64, type: :bytes, json_name: "rangeEnd"
+  field(:result, 1, type: EtcdEx.Proto.Compare.CompareResult, enum: true)
+  field(:target, 2, type: EtcdEx.Proto.Compare.CompareTarget, enum: true)
+  field(:key, 3, type: :bytes)
+  field(:version, 4, type: :int64, oneof: 0)
+  field(:create_revision, 5, type: :int64, json_name: "createRevision", oneof: 0)
+  field(:mod_revision, 6, type: :int64, json_name: "modRevision", oneof: 0)
+  field(:value, 7, type: :bytes, oneof: 0)
+  field(:lease, 8, type: :int64, oneof: 0)
+  field(:range_end, 64, type: :bytes, json_name: "rangeEnd")
 end
 
 defmodule EtcdEx.Proto.TxnRequest do
@@ -235,9 +240,9 @@ defmodule EtcdEx.Proto.TxnRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :compare, 1, repeated: true, type: EtcdEx.Proto.Compare
-  field :success, 2, repeated: true, type: EtcdEx.Proto.RequestOp
-  field :failure, 3, repeated: true, type: EtcdEx.Proto.RequestOp
+  field(:compare, 1, repeated: true, type: EtcdEx.Proto.Compare)
+  field(:success, 2, repeated: true, type: EtcdEx.Proto.RequestOp)
+  field(:failure, 3, repeated: true, type: EtcdEx.Proto.RequestOp)
 end
 
 defmodule EtcdEx.Proto.TxnResponse do
@@ -245,9 +250,9 @@ defmodule EtcdEx.Proto.TxnResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :succeeded, 2, type: :bool
-  field :responses, 3, repeated: true, type: EtcdEx.Proto.ResponseOp
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:succeeded, 2, type: :bool)
+  field(:responses, 3, repeated: true, type: EtcdEx.Proto.ResponseOp)
 end
 
 defmodule EtcdEx.Proto.CompactionRequest do
@@ -255,8 +260,8 @@ defmodule EtcdEx.Proto.CompactionRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :revision, 1, type: :int64
-  field :physical, 2, type: :bool
+  field(:revision, 1, type: :int64)
+  field(:physical, 2, type: :bool)
 end
 
 defmodule EtcdEx.Proto.CompactionResponse do
@@ -264,7 +269,7 @@ defmodule EtcdEx.Proto.CompactionResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.HashRequest do
@@ -278,7 +283,7 @@ defmodule EtcdEx.Proto.HashKVRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :revision, 1, type: :int64
+  field(:revision, 1, type: :int64)
 end
 
 defmodule EtcdEx.Proto.HashKVResponse do
@@ -286,9 +291,9 @@ defmodule EtcdEx.Proto.HashKVResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :hash, 2, type: :uint32
-  field :compact_revision, 3, type: :int64, json_name: "compactRevision"
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:hash, 2, type: :uint32)
+  field(:compact_revision, 3, type: :int64, json_name: "compactRevision")
 end
 
 defmodule EtcdEx.Proto.HashResponse do
@@ -296,8 +301,8 @@ defmodule EtcdEx.Proto.HashResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :hash, 2, type: :uint32
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:hash, 2, type: :uint32)
 end
 
 defmodule EtcdEx.Proto.SnapshotRequest do
@@ -311,9 +316,9 @@ defmodule EtcdEx.Proto.SnapshotResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :remaining_bytes, 2, type: :uint64, json_name: "remainingBytes"
-  field :blob, 3, type: :bytes
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:remaining_bytes, 2, type: :uint64, json_name: "remainingBytes")
+  field(:blob, 3, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.WatchRequest do
@@ -321,22 +326,25 @@ defmodule EtcdEx.Proto.WatchRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  oneof :request_union, 0
+  oneof(:request_union, 0)
 
-  field :create_request, 1,
+  field(:create_request, 1,
     type: EtcdEx.Proto.WatchCreateRequest,
     json_name: "createRequest",
     oneof: 0
+  )
 
-  field :cancel_request, 2,
+  field(:cancel_request, 2,
     type: EtcdEx.Proto.WatchCancelRequest,
     json_name: "cancelRequest",
     oneof: 0
+  )
 
-  field :progress_request, 3,
+  field(:progress_request, 3,
     type: EtcdEx.Proto.WatchProgressRequest,
     json_name: "progressRequest",
     oneof: 0
+  )
 end
 
 defmodule EtcdEx.Proto.WatchCreateRequest do
@@ -344,14 +352,14 @@ defmodule EtcdEx.Proto.WatchCreateRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :key, 1, type: :bytes
-  field :range_end, 2, type: :bytes, json_name: "rangeEnd"
-  field :start_revision, 3, type: :int64, json_name: "startRevision"
-  field :progress_notify, 4, type: :bool, json_name: "progressNotify"
-  field :filters, 5, repeated: true, type: EtcdEx.Proto.WatchCreateRequest.FilterType, enum: true
-  field :prev_kv, 6, type: :bool, json_name: "prevKv"
-  field :watch_id, 7, type: :int64, json_name: "watchId"
-  field :fragment, 8, type: :bool
+  field(:key, 1, type: :bytes)
+  field(:range_end, 2, type: :bytes, json_name: "rangeEnd")
+  field(:start_revision, 3, type: :int64, json_name: "startRevision")
+  field(:progress_notify, 4, type: :bool, json_name: "progressNotify")
+  field(:filters, 5, repeated: true, type: EtcdEx.Proto.WatchCreateRequest.FilterType, enum: true)
+  field(:prev_kv, 6, type: :bool, json_name: "prevKv")
+  field(:watch_id, 7, type: :int64, json_name: "watchId")
+  field(:fragment, 8, type: :bool)
 end
 
 defmodule EtcdEx.Proto.WatchCancelRequest do
@@ -359,7 +367,7 @@ defmodule EtcdEx.Proto.WatchCancelRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :watch_id, 1, type: :int64, json_name: "watchId"
+  field(:watch_id, 1, type: :int64, json_name: "watchId")
 end
 
 defmodule EtcdEx.Proto.WatchProgressRequest do
@@ -373,14 +381,14 @@ defmodule EtcdEx.Proto.WatchResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :watch_id, 2, type: :int64, json_name: "watchId"
-  field :created, 3, type: :bool
-  field :canceled, 4, type: :bool
-  field :compact_revision, 5, type: :int64, json_name: "compactRevision"
-  field :cancel_reason, 6, type: :string, json_name: "cancelReason"
-  field :fragment, 7, type: :bool
-  field :events, 11, repeated: true, type: Mvccpb.Event
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:watch_id, 2, type: :int64, json_name: "watchId")
+  field(:created, 3, type: :bool)
+  field(:canceled, 4, type: :bool)
+  field(:compact_revision, 5, type: :int64, json_name: "compactRevision")
+  field(:cancel_reason, 6, type: :string, json_name: "cancelReason")
+  field(:fragment, 7, type: :bool)
+  field(:events, 11, repeated: true, type: Mvccpb.Event)
 end
 
 defmodule EtcdEx.Proto.LeaseGrantRequest do
@@ -388,8 +396,8 @@ defmodule EtcdEx.Proto.LeaseGrantRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :TTL, 1, type: :int64
-  field :ID, 2, type: :int64
+  field(:TTL, 1, type: :int64)
+  field(:ID, 2, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaseGrantResponse do
@@ -397,10 +405,10 @@ defmodule EtcdEx.Proto.LeaseGrantResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :ID, 2, type: :int64
-  field :TTL, 3, type: :int64
-  field :error, 4, type: :string
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:ID, 2, type: :int64)
+  field(:TTL, 3, type: :int64)
+  field(:error, 4, type: :string)
 end
 
 defmodule EtcdEx.Proto.LeaseRevokeRequest do
@@ -408,7 +416,7 @@ defmodule EtcdEx.Proto.LeaseRevokeRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :int64
+  field(:ID, 1, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaseRevokeResponse do
@@ -416,7 +424,7 @@ defmodule EtcdEx.Proto.LeaseRevokeResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.LeaseCheckpoint do
@@ -424,8 +432,8 @@ defmodule EtcdEx.Proto.LeaseCheckpoint do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :int64
-  field :remaining_TTL, 2, type: :int64, json_name: "remainingTTL"
+  field(:ID, 1, type: :int64)
+  field(:remaining_TTL, 2, type: :int64, json_name: "remainingTTL")
 end
 
 defmodule EtcdEx.Proto.LeaseCheckpointRequest do
@@ -433,7 +441,7 @@ defmodule EtcdEx.Proto.LeaseCheckpointRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :checkpoints, 1, repeated: true, type: EtcdEx.Proto.LeaseCheckpoint
+  field(:checkpoints, 1, repeated: true, type: EtcdEx.Proto.LeaseCheckpoint)
 end
 
 defmodule EtcdEx.Proto.LeaseCheckpointResponse do
@@ -441,7 +449,7 @@ defmodule EtcdEx.Proto.LeaseCheckpointResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.LeaseKeepAliveRequest do
@@ -449,7 +457,7 @@ defmodule EtcdEx.Proto.LeaseKeepAliveRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :int64
+  field(:ID, 1, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaseKeepAliveResponse do
@@ -457,9 +465,9 @@ defmodule EtcdEx.Proto.LeaseKeepAliveResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :ID, 2, type: :int64
-  field :TTL, 3, type: :int64
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:ID, 2, type: :int64)
+  field(:TTL, 3, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaseTimeToLiveRequest do
@@ -467,8 +475,8 @@ defmodule EtcdEx.Proto.LeaseTimeToLiveRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :int64
-  field :keys, 2, type: :bool
+  field(:ID, 1, type: :int64)
+  field(:keys, 2, type: :bool)
 end
 
 defmodule EtcdEx.Proto.LeaseTimeToLiveResponse do
@@ -476,11 +484,11 @@ defmodule EtcdEx.Proto.LeaseTimeToLiveResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :ID, 2, type: :int64
-  field :TTL, 3, type: :int64
-  field :grantedTTL, 4, type: :int64
-  field :keys, 5, repeated: true, type: :bytes
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:ID, 2, type: :int64)
+  field(:TTL, 3, type: :int64)
+  field(:grantedTTL, 4, type: :int64)
+  field(:keys, 5, repeated: true, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.LeaseLeasesRequest do
@@ -494,7 +502,7 @@ defmodule EtcdEx.Proto.LeaseStatus do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :int64
+  field(:ID, 1, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaseLeasesResponse do
@@ -502,8 +510,8 @@ defmodule EtcdEx.Proto.LeaseLeasesResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :leases, 2, repeated: true, type: EtcdEx.Proto.LeaseStatus
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:leases, 2, repeated: true, type: EtcdEx.Proto.LeaseStatus)
 end
 
 defmodule EtcdEx.Proto.Member do
@@ -511,11 +519,11 @@ defmodule EtcdEx.Proto.Member do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :uint64
-  field :name, 2, type: :string
-  field :peerURLs, 3, repeated: true, type: :string
-  field :clientURLs, 4, repeated: true, type: :string
-  field :isLearner, 5, type: :bool
+  field(:ID, 1, type: :uint64)
+  field(:name, 2, type: :string)
+  field(:peerURLs, 3, repeated: true, type: :string)
+  field(:clientURLs, 4, repeated: true, type: :string)
+  field(:isLearner, 5, type: :bool)
 end
 
 defmodule EtcdEx.Proto.MemberAddRequest do
@@ -523,8 +531,8 @@ defmodule EtcdEx.Proto.MemberAddRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :peerURLs, 1, repeated: true, type: :string
-  field :isLearner, 2, type: :bool
+  field(:peerURLs, 1, repeated: true, type: :string)
+  field(:isLearner, 2, type: :bool)
 end
 
 defmodule EtcdEx.Proto.MemberAddResponse do
@@ -532,9 +540,9 @@ defmodule EtcdEx.Proto.MemberAddResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :member, 2, type: EtcdEx.Proto.Member
-  field :members, 3, repeated: true, type: EtcdEx.Proto.Member
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:member, 2, type: EtcdEx.Proto.Member)
+  field(:members, 3, repeated: true, type: EtcdEx.Proto.Member)
 end
 
 defmodule EtcdEx.Proto.MemberRemoveRequest do
@@ -542,7 +550,7 @@ defmodule EtcdEx.Proto.MemberRemoveRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :uint64
+  field(:ID, 1, type: :uint64)
 end
 
 defmodule EtcdEx.Proto.MemberRemoveResponse do
@@ -550,8 +558,8 @@ defmodule EtcdEx.Proto.MemberRemoveResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :members, 2, repeated: true, type: EtcdEx.Proto.Member
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:members, 2, repeated: true, type: EtcdEx.Proto.Member)
 end
 
 defmodule EtcdEx.Proto.MemberUpdateRequest do
@@ -559,8 +567,8 @@ defmodule EtcdEx.Proto.MemberUpdateRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :uint64
-  field :peerURLs, 2, repeated: true, type: :string
+  field(:ID, 1, type: :uint64)
+  field(:peerURLs, 2, repeated: true, type: :string)
 end
 
 defmodule EtcdEx.Proto.MemberUpdateResponse do
@@ -568,8 +576,8 @@ defmodule EtcdEx.Proto.MemberUpdateResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :members, 2, repeated: true, type: EtcdEx.Proto.Member
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:members, 2, repeated: true, type: EtcdEx.Proto.Member)
 end
 
 defmodule EtcdEx.Proto.MemberListRequest do
@@ -583,8 +591,8 @@ defmodule EtcdEx.Proto.MemberListResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :members, 2, repeated: true, type: EtcdEx.Proto.Member
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:members, 2, repeated: true, type: EtcdEx.Proto.Member)
 end
 
 defmodule EtcdEx.Proto.MemberPromoteRequest do
@@ -592,7 +600,7 @@ defmodule EtcdEx.Proto.MemberPromoteRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :ID, 1, type: :uint64
+  field(:ID, 1, type: :uint64)
 end
 
 defmodule EtcdEx.Proto.MemberPromoteResponse do
@@ -600,8 +608,8 @@ defmodule EtcdEx.Proto.MemberPromoteResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :members, 2, repeated: true, type: EtcdEx.Proto.Member
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:members, 2, repeated: true, type: EtcdEx.Proto.Member)
 end
 
 defmodule EtcdEx.Proto.DefragmentRequest do
@@ -615,7 +623,7 @@ defmodule EtcdEx.Proto.DefragmentResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.MoveLeaderRequest do
@@ -623,7 +631,7 @@ defmodule EtcdEx.Proto.MoveLeaderRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :targetID, 1, type: :uint64
+  field(:targetID, 1, type: :uint64)
 end
 
 defmodule EtcdEx.Proto.MoveLeaderResponse do
@@ -631,7 +639,7 @@ defmodule EtcdEx.Proto.MoveLeaderResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AlarmRequest do
@@ -639,9 +647,9 @@ defmodule EtcdEx.Proto.AlarmRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :action, 1, type: EtcdEx.Proto.AlarmRequest.AlarmAction, enum: true
-  field :memberID, 2, type: :uint64
-  field :alarm, 3, type: EtcdEx.Proto.AlarmType, enum: true
+  field(:action, 1, type: EtcdEx.Proto.AlarmRequest.AlarmAction, enum: true)
+  field(:memberID, 2, type: :uint64)
+  field(:alarm, 3, type: EtcdEx.Proto.AlarmType, enum: true)
 end
 
 defmodule EtcdEx.Proto.AlarmMember do
@@ -649,8 +657,8 @@ defmodule EtcdEx.Proto.AlarmMember do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :memberID, 1, type: :uint64
-  field :alarm, 2, type: EtcdEx.Proto.AlarmType, enum: true
+  field(:memberID, 1, type: :uint64)
+  field(:alarm, 2, type: EtcdEx.Proto.AlarmType, enum: true)
 end
 
 defmodule EtcdEx.Proto.AlarmResponse do
@@ -658,8 +666,8 @@ defmodule EtcdEx.Proto.AlarmResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :alarms, 2, repeated: true, type: EtcdEx.Proto.AlarmMember
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:alarms, 2, repeated: true, type: EtcdEx.Proto.AlarmMember)
 end
 
 defmodule EtcdEx.Proto.StatusRequest do
@@ -673,16 +681,16 @@ defmodule EtcdEx.Proto.StatusResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :version, 2, type: :string
-  field :dbSize, 3, type: :int64
-  field :leader, 4, type: :uint64
-  field :raftIndex, 5, type: :uint64
-  field :raftTerm, 6, type: :uint64
-  field :raftAppliedIndex, 7, type: :uint64
-  field :errors, 8, repeated: true, type: :string
-  field :dbSizeInUse, 9, type: :int64
-  field :isLearner, 10, type: :bool
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:version, 2, type: :string)
+  field(:dbSize, 3, type: :int64)
+  field(:leader, 4, type: :uint64)
+  field(:raftIndex, 5, type: :uint64)
+  field(:raftTerm, 6, type: :uint64)
+  field(:raftAppliedIndex, 7, type: :uint64)
+  field(:errors, 8, repeated: true, type: :string)
+  field(:dbSizeInUse, 9, type: :int64)
+  field(:isLearner, 10, type: :bool)
 end
 
 defmodule EtcdEx.Proto.AuthEnableRequest do
@@ -702,8 +710,8 @@ defmodule EtcdEx.Proto.AuthenticateRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
-  field :password, 2, type: :string
+  field(:name, 1, type: :string)
+  field(:password, 2, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserAddRequest do
@@ -711,9 +719,9 @@ defmodule EtcdEx.Proto.AuthUserAddRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
-  field :password, 2, type: :string
-  field :options, 3, type: Authpb.UserAddOptions
+  field(:name, 1, type: :string)
+  field(:password, 2, type: :string)
+  field(:options, 3, type: Authpb.UserAddOptions)
 end
 
 defmodule EtcdEx.Proto.AuthUserGetRequest do
@@ -721,7 +729,7 @@ defmodule EtcdEx.Proto.AuthUserGetRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
+  field(:name, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserDeleteRequest do
@@ -729,7 +737,7 @@ defmodule EtcdEx.Proto.AuthUserDeleteRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
+  field(:name, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserChangePasswordRequest do
@@ -737,8 +745,8 @@ defmodule EtcdEx.Proto.AuthUserChangePasswordRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
-  field :password, 2, type: :string
+  field(:name, 1, type: :string)
+  field(:password, 2, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserGrantRoleRequest do
@@ -746,8 +754,8 @@ defmodule EtcdEx.Proto.AuthUserGrantRoleRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :user, 1, type: :string
-  field :role, 2, type: :string
+  field(:user, 1, type: :string)
+  field(:role, 2, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserRevokeRoleRequest do
@@ -755,8 +763,8 @@ defmodule EtcdEx.Proto.AuthUserRevokeRoleRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
-  field :role, 2, type: :string
+  field(:name, 1, type: :string)
+  field(:role, 2, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthRoleAddRequest do
@@ -764,7 +772,7 @@ defmodule EtcdEx.Proto.AuthRoleAddRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
+  field(:name, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthRoleGetRequest do
@@ -772,7 +780,7 @@ defmodule EtcdEx.Proto.AuthRoleGetRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :role, 1, type: :string
+  field(:role, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserListRequest do
@@ -792,7 +800,7 @@ defmodule EtcdEx.Proto.AuthRoleDeleteRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :role, 1, type: :string
+  field(:role, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthRoleGrantPermissionRequest do
@@ -800,8 +808,8 @@ defmodule EtcdEx.Proto.AuthRoleGrantPermissionRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :string
-  field :perm, 2, type: Authpb.Permission
+  field(:name, 1, type: :string)
+  field(:perm, 2, type: Authpb.Permission)
 end
 
 defmodule EtcdEx.Proto.AuthRoleRevokePermissionRequest do
@@ -809,9 +817,9 @@ defmodule EtcdEx.Proto.AuthRoleRevokePermissionRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :role, 1, type: :string
-  field :key, 2, type: :bytes
-  field :range_end, 3, type: :bytes, json_name: "rangeEnd"
+  field(:role, 1, type: :string)
+  field(:key, 2, type: :bytes)
+  field(:range_end, 3, type: :bytes, json_name: "rangeEnd")
 end
 
 defmodule EtcdEx.Proto.AuthEnableResponse do
@@ -819,7 +827,7 @@ defmodule EtcdEx.Proto.AuthEnableResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthDisableResponse do
@@ -827,7 +835,7 @@ defmodule EtcdEx.Proto.AuthDisableResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthenticateResponse do
@@ -835,8 +843,8 @@ defmodule EtcdEx.Proto.AuthenticateResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :token, 2, type: :string
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:token, 2, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserAddResponse do
@@ -844,7 +852,7 @@ defmodule EtcdEx.Proto.AuthUserAddResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthUserGetResponse do
@@ -852,8 +860,8 @@ defmodule EtcdEx.Proto.AuthUserGetResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :roles, 2, repeated: true, type: :string
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:roles, 2, repeated: true, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserDeleteResponse do
@@ -861,7 +869,7 @@ defmodule EtcdEx.Proto.AuthUserDeleteResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthUserChangePasswordResponse do
@@ -869,7 +877,7 @@ defmodule EtcdEx.Proto.AuthUserChangePasswordResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthUserGrantRoleResponse do
@@ -877,7 +885,7 @@ defmodule EtcdEx.Proto.AuthUserGrantRoleResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthUserRevokeRoleResponse do
@@ -885,7 +893,7 @@ defmodule EtcdEx.Proto.AuthUserRevokeRoleResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthRoleAddResponse do
@@ -893,7 +901,7 @@ defmodule EtcdEx.Proto.AuthRoleAddResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthRoleGetResponse do
@@ -901,8 +909,8 @@ defmodule EtcdEx.Proto.AuthRoleGetResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :perm, 2, repeated: true, type: Authpb.Permission
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:perm, 2, repeated: true, type: Authpb.Permission)
 end
 
 defmodule EtcdEx.Proto.AuthRoleListResponse do
@@ -910,8 +918,8 @@ defmodule EtcdEx.Proto.AuthRoleListResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :roles, 2, repeated: true, type: :string
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:roles, 2, repeated: true, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthUserListResponse do
@@ -919,8 +927,8 @@ defmodule EtcdEx.Proto.AuthUserListResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :users, 2, repeated: true, type: :string
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:users, 2, repeated: true, type: :string)
 end
 
 defmodule EtcdEx.Proto.AuthRoleDeleteResponse do
@@ -928,7 +936,7 @@ defmodule EtcdEx.Proto.AuthRoleDeleteResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthRoleGrantPermissionResponse do
@@ -936,7 +944,7 @@ defmodule EtcdEx.Proto.AuthRoleGrantPermissionResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.AuthRoleRevokePermissionResponse do
@@ -944,7 +952,7 @@ defmodule EtcdEx.Proto.AuthRoleRevokePermissionResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.HealthCheckRequest do
@@ -952,7 +960,7 @@ defmodule EtcdEx.Proto.HealthCheckRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :service, 1, type: :string
+  field(:service, 1, type: :string)
 end
 
 defmodule EtcdEx.Proto.HealthCheckResponse do
@@ -960,7 +968,7 @@ defmodule EtcdEx.Proto.HealthCheckResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :status, 1, type: EtcdEx.Proto.HealthCheckResponse.ServingStatus, enum: true
+  field(:status, 1, type: EtcdEx.Proto.HealthCheckResponse.ServingStatus, enum: true)
 end
 
 defmodule EtcdEx.Proto.LockRequest do
@@ -968,8 +976,8 @@ defmodule EtcdEx.Proto.LockRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :bytes
-  field :lease, 2, type: :int64
+  field(:name, 1, type: :bytes)
+  field(:lease, 2, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LockResponse do
@@ -977,8 +985,8 @@ defmodule EtcdEx.Proto.LockResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :key, 2, type: :bytes
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:key, 2, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.UnlockRequest do
@@ -986,7 +994,7 @@ defmodule EtcdEx.Proto.UnlockRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :key, 1, type: :bytes
+  field(:key, 1, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.UnlockResponse do
@@ -994,7 +1002,7 @@ defmodule EtcdEx.Proto.UnlockResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.CampaignRequest do
@@ -1002,9 +1010,9 @@ defmodule EtcdEx.Proto.CampaignRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :bytes
-  field :lease, 2, type: :int64
-  field :value, 3, type: :bytes
+  field(:name, 1, type: :bytes)
+  field(:lease, 2, type: :int64)
+  field(:value, 3, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.CampaignResponse do
@@ -1012,8 +1020,8 @@ defmodule EtcdEx.Proto.CampaignResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :leader, 2, type: EtcdEx.Proto.LeaderKey
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:leader, 2, type: EtcdEx.Proto.LeaderKey)
 end
 
 defmodule EtcdEx.Proto.LeaderKey do
@@ -1021,10 +1029,10 @@ defmodule EtcdEx.Proto.LeaderKey do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :bytes
-  field :key, 2, type: :bytes
-  field :rev, 3, type: :int64
-  field :lease, 4, type: :int64
+  field(:name, 1, type: :bytes)
+  field(:key, 2, type: :bytes)
+  field(:rev, 3, type: :int64)
+  field(:lease, 4, type: :int64)
 end
 
 defmodule EtcdEx.Proto.LeaderRequest do
@@ -1032,7 +1040,7 @@ defmodule EtcdEx.Proto.LeaderRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :name, 1, type: :bytes
+  field(:name, 1, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.LeaderResponse do
@@ -1040,8 +1048,8 @@ defmodule EtcdEx.Proto.LeaderResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
-  field :kv, 2, type: Mvccpb.KeyValue
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
+  field(:kv, 2, type: Mvccpb.KeyValue)
 end
 
 defmodule EtcdEx.Proto.ResignRequest do
@@ -1049,7 +1057,7 @@ defmodule EtcdEx.Proto.ResignRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :leader, 1, type: EtcdEx.Proto.LeaderKey
+  field(:leader, 1, type: EtcdEx.Proto.LeaderKey)
 end
 
 defmodule EtcdEx.Proto.ResignResponse do
@@ -1057,7 +1065,7 @@ defmodule EtcdEx.Proto.ResignResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
 
 defmodule EtcdEx.Proto.ProclaimRequest do
@@ -1065,8 +1073,8 @@ defmodule EtcdEx.Proto.ProclaimRequest do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :leader, 1, type: EtcdEx.Proto.LeaderKey
-  field :value, 2, type: :bytes
+  field(:leader, 1, type: EtcdEx.Proto.LeaderKey)
+  field(:value, 2, type: :bytes)
 end
 
 defmodule EtcdEx.Proto.ProclaimResponse do
@@ -1074,5 +1082,5 @@ defmodule EtcdEx.Proto.ProclaimResponse do
 
   use Protobuf, protoc_gen_elixir_version: "0.12.0", syntax: :proto3
 
-  field :header, 1, type: EtcdEx.Proto.ResponseHeader
+  field(:header, 1, type: EtcdEx.Proto.ResponseHeader)
 end
