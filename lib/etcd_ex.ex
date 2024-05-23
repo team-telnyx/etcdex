@@ -35,25 +35,20 @@ defmodule EtcdEx do
   alias EtcdEx.Types
 
   @type start_opt ::
-          {:options, [option]}
-          | {:transport, transport}
-          | {:transport_opts, transport_opts}
+          {:endpoint, endpoint()}
+          | {:keep_alive_interval, pos_integer}
+          | {:keep_alive_timeout, pos_integer}
+          | GenServer.option()
 
-  @type option ::
-          {:mode, :connect_all | :random}
-          | {:name, String.t()}
-          | {:password, String.t()}
-          | {:retry, non_neg_integer}
-          | {:retry_timeout, pos_integer}
-          | {:connect_timeout, timeout}
-          | {:auto_sync_interval_ms, timeout}
-          | extended_options
-
-  @type transport :: :tcp | :tls | :ssl
-
-  @type transport_opts :: [:gen_tcp.connect_option()] | [:ssl.tls_client_option()]
-
-  @type extended_options :: {atom, any}
+  @typedoc """
+  See `Mint.HTTP.connect/4` for the options available.
+  """
+  @type endpoint :: {
+          Mint.Types.scheme(),
+          Mint.Types.address(),
+          :inet.port_number(),
+          keyword
+        }
 
   @type conn :: EtcdEx.Connection.t()
 
@@ -66,7 +61,7 @@ defmodule EtcdEx do
   Returns a specification to start `EtcdEx` under a supervisor.
   """
   @spec child_spec([start_opt]) :: Supervisor.child_spec()
-  defdelegate child_spec(init_opts), to: EtcdEx.Connection
+  defdelegate child_spec(start_opts), to: EtcdEx.Connection
 
   @doc """
   Starts the `EtcdEx` client as a worker process.
