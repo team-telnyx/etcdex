@@ -43,20 +43,40 @@ defmodule EtcdEx.Connection do
   ]
 
   @doc false
-  def unary(conn, fun, args, timeout),
-    do: Connection.call(conn, {:unary, fun, args}, timeout)
+  def unary(conn, fun, args, timeout) do
+    try do
+      Connection.call(conn, {:unary, fun, args}, timeout)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+    end
+  end
 
   @doc false
-  def watch(conn, watching_process, key, opts, timeout),
-    do: Connection.call(conn, {:watch, watching_process, key, opts}, timeout)
+  def watch(conn, watching_process, key, opts, timeout) do
+    try do
+      Connection.call(conn, {:watch, watching_process, key, opts}, timeout)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+    end
+  end
 
   @doc false
-  def cancel_watch(conn, watching_process, timeout),
-    do: Connection.call(conn, {:cancel_watch, watching_process}, timeout)
+  def cancel_watch(conn, watching_process, timeout) do
+    try do
+      Connection.call(conn, {:cancel_watch, watching_process}, timeout)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+    end
+  end
 
   @doc false
-  def list_watches(conn, watching_process, timeout),
-    do: Connection.call(conn, {:list_watches, watching_process}, timeout)
+  def list_watches(conn, watching_process, timeout) do
+    try do
+      Connection.call(conn, {:list_watches, watching_process}, timeout)
+    catch
+      :exit, {:timeout, _} -> {:error, :timeout}
+    end
+  end
 
   @doc false
   def child_spec(options) do

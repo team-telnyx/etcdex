@@ -55,6 +55,7 @@ defmodule EtcdEx do
   @type watch_ref :: reference
   @type watching_process :: pid
 
+  # Default timeout for all operations. After this time, operations will return {:error, :timeout}
   @default_timeout :timer.seconds(5)
 
   @doc """
@@ -158,8 +159,9 @@ defmodule EtcdEx do
       filters out lesser create revisions.
     * `:max_create_revision` - the upper bound for key create revisions;
       filters out greater create revisions.
-    * `:timeout` - indicates max time to wait for a response. Defaults to
-      `:infinity`.
+    * `:timeout` - indicates max time to wait for a response. Defaults to 5 seconds.
+      If the operation takes longer than the specified timeout, it will return
+      `{:error, :timeout}` instead of crashing.
 
   ## Response
 
@@ -214,6 +216,12 @@ defmodule EtcdEx do
     * `:mod_revision` - revision of the last modification on the key.
     * `:lease` - the ID of the lease attached to the key. If lease is 0, then
       no lease is attached to the key.
+
+  ## Error Handling
+
+  The function will return `{:error, :timeout}` if the operation takes longer than
+  the specified timeout value. This is a graceful error handling mechanism that
+  prevents the process from crashing on timeouts.
   """
   @spec get(conn, Types.key(), [Types.get_opt()], timeout) ::
           {:ok, any} | {:error, Types.error()}
@@ -239,8 +247,15 @@ defmodule EtcdEx do
       value. Returns an error if the key does not exist.
     * `:ignore_lease` - when set, update the key without changing its current
       lease. Returns an error if the key does not exist.
-    * `:timeout` - indicates max time to wait for a response. Defaults to
-      `:infinity`.
+    * `:timeout` - indicates max time to wait for a response. Defaults to 5 seconds.
+      If the operation takes longer than the specified timeout, it will return
+      `{:error, :timeout}` instead of crashing.
+
+  ## Error Handling
+
+  The function will return `{:error, :timeout}` if the operation takes longer than
+  the specified timeout value. This is a graceful error handling mechanism that
+  prevents the process from crashing on timeouts.
   """
   @spec put(conn, Types.key(), Types.value(), [Types.put_opt()], timeout) ::
           {:ok, any} | {:error, Types.error()}
@@ -262,8 +277,15 @@ defmodule EtcdEx do
       keys after `key` argument.
     * `:prev_kv` - when set, return the contents of the deleted key-value
       pairs.
-    * `:timeout` - indicates max time to wait for a response. Defaults to
-      `:infinity`.
+    * `:timeout` - indicates max time to wait for a response. Defaults to 5 seconds.
+      If the operation takes longer than the specified timeout, it will return
+      `{:error, :timeout}` instead of crashing.
+
+  ## Error Handling
+
+  The function will return `{:error, :timeout}` if the operation takes longer than
+  the specified timeout value. This is a graceful error handling mechanism that
+  prevents the process from crashing on timeouts.
   """
   @spec delete(conn, Types.key(), [Types.delete_opt()], timeout) ::
           {:ok, any} | {:error, Types.error()}
