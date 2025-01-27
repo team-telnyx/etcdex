@@ -20,6 +20,7 @@ defmodule EtcdEx.Connection do
 
   @default_endpoint {:http, "localhost", 2379, []}
   @default_backoff :timer.seconds(5)
+  @default_operation_timeout :timer.seconds(5)
 
   @closed %Mint.TransportError{reason: :closed}
 
@@ -93,7 +94,7 @@ defmodule EtcdEx.Connection do
           @default_endpoint
       end
 
-    options = Keyword.take(options, [:keep_alive_interval, :keep_alive_timeout])
+    options = Keyword.take(options, [:keep_alive_interval, :keep_alive_timeout, :operation_timeout])
 
     Connection.start_link(__MODULE__, {endpoint, options}, start_opts)
   end
@@ -176,8 +177,15 @@ defmodule EtcdEx.Connection do
     start_time = Telemetry.start(:request, start_metadata, %{system_time: System.system_time()})
 
     request_metadata = Map.put(start_metadata, :start_time, start_time)
-    result = apply(EtcdEx.Mint, fun, [state.env] ++ args)
-    handle_unary_request(result, from, state, request_metadata)
+    timeout = Keyword.get(state.options, :operation_timeout, @default_operation_timeout)
+
+    case apply(EtcdEx.Mint, fun, [state.env] ++ args) do
+      {:ok, env, request_ref} = result ->
+        Process.send_after(self(), {:request_timeout, request_ref}, timeout)
+        handle_unary_request(result, from, state, request_metadata)
+      error ->
+        handle_unary_request(error, from, state, request_metadata)
+    end
   end
 
   def handle_call({:watch, watching_process, key, opts}, _from, state) do
@@ -234,6 +242,31 @@ defmodule EtcdEx.Connection do
 
   def handle_info(:keep_alive_expired, state),
     do: {:disconnect, :keep_alive_timeout, state}
+
+  def handle_info({:request_timeout, request_ref}, state) do
+    case Map.get(state.pending_requests, request_ref) do
+      nil ->
+        {:noreply, state}
+
+      {:unary, from, _, metadata} ->
+        result = {:error, :timeout}
+        end_metadata =
+          metadata
+          |> Map.take([:request, :args])
+          |> Map.put(:result, result)
+
+        Telemetry.stop(:request, metadata.start_time, end_metadata)
+        Connection.reply(from, result)
+        pending_requests = Map.delete(state.pending_requests, request_ref)
+        {:noreply, %{state | pending_requests: pending_requests}}
+
+      {:watch, watching_process} ->
+        send(watching_process, {:etcd_watch_error, :timeout})
+        pending_requests = Map.delete(state.pending_requests, request_ref)
+        watch_streams = Map.delete(state.watch_streams, watching_process)
+        {:noreply, %{state | pending_requests: pending_requests, watch_streams: watch_streams}}
+    end
+  end
 
   def handle_info(message, state) do
     case EtcdEx.Mint.stream(state.env, message) do

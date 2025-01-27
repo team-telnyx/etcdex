@@ -38,6 +38,7 @@ defmodule EtcdEx do
           {:endpoint, endpoint()}
           | {:keep_alive_interval, pos_integer}
           | {:keep_alive_timeout, pos_integer}
+          | {:operation_timeout, pos_integer}
           | GenServer.option()
 
   @typedoc """
@@ -96,6 +97,9 @@ defmodule EtcdEx do
        ping will be considered unacknowledged. Used in conjunction with
        `:keep_alive_interval`. Set to `:infinity` to disable keep-alive checks.
        Should be any integer value `>= 10_000`. Defaults to 10 seconds.
+    * `:operation_timeout` - the maximum time to wait for a response from an ETCD
+       operation before returning a timeout error. Should be any integer value
+       `>= 5_000`. Defaults to 5 seconds.
   """
   @spec start_link([start_opt]) :: GenServer.on_start()
   defdelegate start_link(start_opts), to: EtcdEx.Connection
