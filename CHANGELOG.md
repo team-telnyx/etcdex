@@ -1,4 +1,8 @@
 # Changelog
+## 2.0.0
+
+* `ETCD` oprations no longer crash on timeout
+* `ETCD` oprations now return an error tuple `{:error, :timeout}` on timeout
 
 ## 1.3.0
 
